@@ -43,7 +43,6 @@ jobs:
       PHP_BIN: ${{ vars.HOSTINGER_PHP_BIN || 'php' }}
       APP_URL: ${{ vars.APP_URL }}
       HAS_PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV != '' }}
-      HAS_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS != '' }}
 
     steps:
       - name: Checkout code
@@ -52,6 +51,8 @@ jobs:
           persist-credentials: false
 
       - name: Check configuration
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
         run: |
           missing=0
           for name in SSH_HOST SSH_USER DEPLOY_PATH PUBLIC_HTML; do
@@ -60,7 +61,7 @@ jobs:
               missing=1
             fi
           done
-          if [ -z "${{ secrets.HOSTINGER_SSH_KEY }}" ]; then
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
             echo "::error::Le secret HOSTINGER_SSH_KEY est manquant."
             missing=1
           fi
@@ -93,35 +94,64 @@ jobs:
             -czf release.tar.gz app bootstrap config database lang public resources/views routes vendor artisan composer.json composer.lock
 
       - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
         run: |
           install -m 700 -d ~/.ssh
-          umask 077
-          echo "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/deploy_key
-          if [ "$HAS_KNOWN_HOSTS" = "true" ]; then
-            echo "${{ secrets.HOSTINGER_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          # Windows copy-paste may add carriage returns: OpenSSH then rejects the key.
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+
+          if ! ssh-keygen -y -f ~/.ssh/id_deploy > /dev/null 2>&1; then
+            echo "::error::Le secret HOSTINGER_SSH_KEY n'est pas une clé privée valide. Colle le contenu COMPLET du fichier vinora_deploy (sans .pub), de « -----BEGIN OPENSSH PRIVATE KEY----- » à « -----END OPENSSH PRIVATE KEY----- »."
+            exit 1
+          fi
+          echo "Empreinte de la clé utilisée : $(ssh-keygen -lf ~/.ssh/id_deploy | awk '{print $2}')"
+
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
           else
-            ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" > ~/.ssh/known_hosts 2>/dev/null
+            ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" > ~/.ssh/known_hosts 2>/dev/null
+          fi
+
+          cat > ~/.ssh/config <<EOF
+          Host hostinger
+            HostName $SSH_HOST
+            User $SSH_USER
+            Port $SSH_PORT
+            IdentityFile ~/.ssh/id_deploy
+            IdentitiesOnly yes
+            BatchMode yes
+            ServerAliveInterval 30
+          EOF
+
+      - name: Test SSH connection
+        run: |
+          if ! ssh hostinger "echo connected" > /dev/null; then
+            echo "::error::Le serveur refuse la clé SSH. Vérifie : 1) la clé publique vinora_deploy.pub est ajoutée dans hPanel → Accès SSH (même empreinte que ci-dessus) ; 2) HOSTINGER_SSH_USER est bien l'utilisateur u… ; 3) HOSTINGER_SSH_HOST est l'IP SSH ; 4) le port (variable HOSTINGER_SSH_PORT, 65002 par défaut)."
+            exit 1
           fi
 
       - name: Upload production .env
         if: env.HAS_PRODUCTION_ENV == 'true'
+        env:
+          PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
         run: |
-          umask 077
-          printf '%s\n' "${{ secrets.PRODUCTION_ENV }}" > production.env
-          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_PATH/shared'"
-          scp -i ~/.ssh/deploy_key -P "$SSH_PORT" production.env "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/shared/.env"
-          rm -f production.env
+          printf '%s\n' "$PRODUCTION_ENV" | tr -d '\r' | ssh hostinger "mkdir -p '$DEPLOY_PATH/shared' && umask 077 && cat > '$DEPLOY_PATH/shared/.env'"
 
       - name: Upload release
         if: env.ACTION == 'deploy'
         run: |
-          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_PATH/releases'"
-          scp -i ~/.ssh/deploy_key -P "$SSH_PORT" release.tar.gz "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/release.tar.gz"
+          ssh hostinger "mkdir -p '$DEPLOY_PATH/releases'"
+          scp release.tar.gz "hostinger:$DEPLOY_PATH/release.tar.gz"
 
       - name: Run remote script
         run: |
-          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "ACTION='$ACTION' DEPLOY_PATH='$DEPLOY_PATH' PUBLIC_HTML='$PUBLIC_HTML' PHP_BIN='$PHP_BIN' RELEASE='$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}' bash -s" < deploy/remote.sh
+          RELEASE="$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          ssh hostinger \
+            "ACTION='$ACTION' DEPLOY_PATH='$DEPLOY_PATH' PUBLIC_HTML='$PUBLIC_HTML' PHP_BIN='$PHP_BIN' RELEASE='$RELEASE' bash -s" \
+            < deploy/remote.sh
 
       - name: Health check
         if: env.APP_URL != ''
@@ -138,4 +168,4 @@ jobs:
 
       - name: Remove SSH key
         if: always()
-        run: rm -f ~/.ssh/deploy_key
+        run: rm -f ~/.ssh/id_deploy
