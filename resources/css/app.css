@@ -1,0 +1,613 @@
+@import 'tailwindcss';
+
+@import 'tw-animate-css';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+    --font-sans:
+        'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Noto Color Emoji';
+    --font-display:
+        'Bricolage Grotesque', 'Plus Jakarta Sans', ui-sans-serif, system-ui,
+        sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+
+    --color-warm: var(--warm);
+    --color-warm-foreground: var(--warm-foreground);
+
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-young: var(--young);
+    --color-ready: var(--ready);
+    --color-soon: var(--soon);
+    --color-past: var(--past);
+
+    --color-glass: var(--glass);
+    --color-glass-strong: var(--glass-strong);
+    --color-glass-border: var(--glass-border);
+    --color-hairline: var(--hairline);
+
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+
+    --shadow-soft: var(--shadow-soft-value);
+    --shadow-float: var(--shadow-float-value);
+}
+
+/*
+ * « Cave et lumière » : ivoire, bordeaux et or. Les surfaces sont en verre
+ * dépoli, une aurore chaude dérive derrière le contenu et l'or est réservé à
+ * l'action de ranger une bouteille.
+ */
+:root {
+    --background: oklch(0.982 0.009 80);
+    --foreground: oklch(0.25 0.045 20);
+    --card: oklch(0.997 0.004 85);
+    --card-foreground: oklch(0.25 0.045 20);
+    --popover: oklch(0.997 0.004 85);
+    --popover-foreground: oklch(0.25 0.045 20);
+    --primary: oklch(0.47 0.165 15);
+    --primary-foreground: oklch(0.99 0.005 85);
+    --secondary: oklch(0.955 0.016 60);
+    --secondary-foreground: oklch(0.3 0.05 20);
+    --muted: oklch(0.955 0.012 70);
+    --muted-foreground: oklch(0.52 0.035 30);
+    --accent: oklch(0.94 0.025 40);
+    --accent-foreground: oklch(0.3 0.05 20);
+    --warm: oklch(0.78 0.145 75);
+    --warm-foreground: oklch(0.28 0.07 45);
+    --destructive: oklch(0.58 0.21 27);
+    --destructive-foreground: oklch(0.99 0 0);
+    --border: oklch(0.912 0.018 60);
+    --input: oklch(0.89 0.022 60);
+    --ring: oklch(0.55 0.15 15);
+
+    --young: oklch(0.64 0.13 245);
+    --ready: oklch(0.64 0.15 150);
+    --soon: oklch(0.77 0.16 70);
+    --past: oklch(0.6 0.2 25);
+
+    --glass: rgb(255 252 247 / 0.72);
+    --glass-strong: rgb(255 252 247 / 0.88);
+    --glass-border: rgb(255 255 255 / 0.9);
+    --hairline: rgb(90 20 35 / 0.08);
+
+    --aurora-1: rgb(225 29 72 / 0.22);
+    --aurora-2: rgb(234 179 8 / 0.26);
+    --aurora-3: rgb(147 51 234 / 0.15);
+    --aurora-4: rgb(251 146 60 / 0.2);
+
+    --shadow-soft-value:
+        0 1px 2px rgb(40 10 15 / 0.04), 0 8px 24px -12px rgb(90 20 35 / 0.2);
+    --shadow-float-value:
+        0 2px 6px rgb(40 10 15 / 0.05), 0 24px 48px -20px rgb(90 20 35 / 0.38);
+
+    --cellar-body-from: #ffffff;
+    --cellar-body-to: #efe7dc;
+    --cellar-inside-from: #2a1418;
+    --cellar-inside-to: #170b0e;
+    --wood-light: #c9955f;
+    --wood-dark: #8a5a33;
+    --stone-from: #e9e1d4;
+    --stone-to: #cfc3b0;
+
+    --radius: 1rem;
+    --sidebar: oklch(0.975 0.012 75);
+    --sidebar-foreground: oklch(0.25 0.045 20);
+    --sidebar-primary: oklch(0.47 0.165 15);
+    --sidebar-primary-foreground: oklch(0.99 0.005 85);
+    --sidebar-accent: oklch(0.94 0.025 40);
+    --sidebar-accent-foreground: oklch(0.3 0.05 20);
+    --sidebar-border: oklch(0.912 0.018 60);
+    --sidebar-ring: oklch(0.55 0.15 15);
+}
+
+/* « Nuit de cave » : aubergine profond, lueurs dorées atténuées. */
+.dark {
+    --background: oklch(0.17 0.025 15);
+    --foreground: oklch(0.95 0.012 70);
+    --card: oklch(0.215 0.03 15);
+    --card-foreground: oklch(0.95 0.012 70);
+    --popover: oklch(0.235 0.032 15);
+    --popover-foreground: oklch(0.95 0.012 70);
+    --primary: oklch(0.72 0.14 12);
+    --primary-foreground: oklch(0.18 0.04 15);
+    --secondary: oklch(0.27 0.035 15);
+    --secondary-foreground: oklch(0.95 0.012 70);
+    --muted: oklch(0.255 0.03 15);
+    --muted-foreground: oklch(0.72 0.03 50);
+    --accent: oklch(0.29 0.045 15);
+    --accent-foreground: oklch(0.95 0.012 70);
+    --warm: oklch(0.82 0.13 80);
+    --warm-foreground: oklch(0.25 0.06 40);
+    --destructive: oklch(0.62 0.2 25);
+    --destructive-foreground: oklch(0.99 0 0);
+    --border: oklch(0.3 0.03 15);
+    --input: oklch(0.33 0.035 15);
+    --ring: oklch(0.7 0.13 12);
+
+    --young: oklch(0.7 0.12 245);
+    --ready: oklch(0.72 0.14 150);
+    --soon: oklch(0.8 0.15 75);
+    --past: oklch(0.67 0.19 25);
+
+    --glass: rgb(52 28 32 / 0.62);
+    --glass-strong: rgb(52 28 32 / 0.86);
+    --glass-border: rgb(255 255 255 / 0.08);
+    --hairline: rgb(255 255 255 / 0.07);
+
+    --aurora-1: rgb(225 29 72 / 0.14);
+    --aurora-2: rgb(234 179 8 / 0.1);
+    --aurora-3: rgb(147 51 234 / 0.1);
+    --aurora-4: rgb(251 146 60 / 0.07);
+
+    --shadow-soft-value:
+        0 1px 2px rgb(0 0 0 / 0.25), 0 8px 24px -12px rgb(0 0 0 / 0.5);
+    --shadow-float-value:
+        0 2px 6px rgb(0 0 0 / 0.3), 0 24px 48px -20px rgb(0 0 0 / 0.65);
+
+    --cellar-body-from: #4a2b30;
+    --cellar-body-to: #2c181c;
+    --cellar-inside-from: #1d0d10;
+    --cellar-inside-to: #0f0608;
+    --wood-light: #8e6440;
+    --wood-dark: #5a3a21;
+    --stone-from: #4b4038;
+    --stone-to: #2f2722;
+
+    --sidebar: oklch(0.2 0.028 15);
+    --sidebar-foreground: oklch(0.95 0.012 70);
+    --sidebar-primary: oklch(0.72 0.14 12);
+    --sidebar-primary-foreground: oklch(0.18 0.04 15);
+    --sidebar-accent: oklch(0.29 0.045 15);
+    --sidebar-accent-foreground: oklch(0.95 0.012 70);
+    --sidebar-border: oklch(0.3 0.03 15);
+    --sidebar-ring: oklch(0.7 0.13 12);
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    html,
+    body {
+        overflow-x: clip;
+        overscroll-behavior-y: none;
+    }
+
+    html {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+        @apply bg-background font-sans text-[15px] text-foreground antialiased;
+        font-feature-settings:
+            'ss01' on,
+            'cv11' on;
+    }
+
+    ::selection {
+        background: color-mix(in oklab, var(--primary) 25%, transparent);
+    }
+
+    .font-display {
+        letter-spacing: -0.02em;
+    }
+
+    button:not(:disabled),
+    [role='button']:not([aria-disabled='true']) {
+        cursor: pointer;
+    }
+}
+
+@layer components {
+    .glass {
+        background: var(--glass);
+        border: 1px solid var(--glass-border);
+        -webkit-backdrop-filter: blur(20px) saturate(160%);
+        backdrop-filter: blur(20px) saturate(160%);
+        box-shadow: var(--shadow-soft-value);
+    }
+
+    .glass-strong {
+        background: var(--glass-strong);
+        border: 1px solid var(--glass-border);
+        -webkit-backdrop-filter: blur(24px) saturate(170%);
+        backdrop-filter: blur(24px) saturate(170%);
+        box-shadow: var(--shadow-soft-value);
+    }
+
+    .surface {
+        background: var(--card);
+        border: 1px solid var(--hairline);
+        border-radius: 1.5rem;
+        box-shadow: var(--shadow-soft-value);
+    }
+
+    .text-gradient-brand {
+        background-image: linear-gradient(
+            100deg,
+            #be123c 0%,
+            #9f1239 45%,
+            #ca8a04 100%
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+
+    .dark .text-gradient-brand {
+        background-image: linear-gradient(
+            100deg,
+            #fb7185 0%,
+            #f43f5e 45%,
+            #facc15 100%
+        );
+    }
+
+    .bg-brand {
+        background-image: linear-gradient(
+            135deg,
+            #e11d48 0%,
+            #9f1239 50%,
+            #581c87 100%
+        );
+    }
+
+    .bg-gradient-primary {
+        background-image: linear-gradient(
+            135deg,
+            oklch(0.57 0.18 18),
+            var(--primary)
+        );
+    }
+
+    .bg-gradient-warm {
+        background-image: linear-gradient(
+            135deg,
+            oklch(0.91 0.1 95),
+            var(--warm)
+        );
+    }
+
+    /* Voile et reflet des grandes cartes dégradées avec texte blanc. */
+    .hero-veil {
+        background-image:
+            radial-gradient(
+                circle at 85% 15%,
+                rgb(255 255 255 / 0.28),
+                transparent 45%
+            ),
+            linear-gradient(160deg, rgb(30 8 12 / 0.12), rgb(30 8 12 / 0.34));
+    }
+
+    /* Fil de bois des clayettes et des casiers. */
+    .wood-texture {
+        background-color: var(--wood-light);
+        background-image:
+            repeating-linear-gradient(
+                92deg,
+                rgb(255 255 255 / 0.06) 0 2px,
+                transparent 2px 7px
+            ),
+            repeating-linear-gradient(
+                88deg,
+                rgb(80 40 10 / 0.12) 0 1px,
+                transparent 1px 11px
+            ),
+            linear-gradient(180deg, var(--wood-light), var(--wood-dark));
+    }
+
+    /* Moellons d'une cave voûtée. */
+    .stone-texture {
+        background-color: var(--stone-from);
+        background-image:
+            linear-gradient(rgb(0 0 0 / 0.06) 1px, transparent 1px),
+            linear-gradient(90deg, rgb(0 0 0 / 0.05) 1px, transparent 1px),
+            linear-gradient(180deg, var(--stone-from), var(--stone-to));
+        background-size:
+            100% 14px,
+            28px 28px,
+            100% 100%;
+    }
+
+    /* Grille métallique d'un casier. */
+    .lattice {
+        background-image:
+            linear-gradient(45deg, rgb(255 255 255 / 0.1) 1px, transparent 1px),
+            linear-gradient(-45deg, rgb(255 255 255 / 0.1) 1px, transparent 1px);
+        background-size: 12px 12px;
+    }
+
+    /* Lueur LED en haut des caves électriques. */
+    .cellar-glow {
+        background-image:
+            radial-gradient(
+                120% 60% at 50% 0%,
+                rgb(255 214 150 / 0.22),
+                transparent 70%
+            ),
+            linear-gradient(
+                180deg,
+                var(--cellar-inside-from),
+                var(--cellar-inside-to)
+            );
+    }
+
+    .stretched-link::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        border-radius: inherit;
+    }
+
+    .no-scrollbar {
+        scrollbar-width: none;
+    }
+
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .pb-safe {
+        padding-bottom: max(env(safe-area-inset-bottom), 0.75rem);
+    }
+
+    .pt-safe {
+        padding-top: env(safe-area-inset-top);
+    }
+
+    .skeleton {
+        background: linear-gradient(
+            90deg,
+            var(--muted) 0%,
+            color-mix(in oklab, var(--muted) 60%, var(--card)) 50%,
+            var(--muted) 100%
+        );
+        background-size: 200% 100%;
+        animation: skeleton 1.4s ease-in-out infinite;
+    }
+}
+
+/* Fond animé : quatre lueurs radiales qui dérivent, sans filtre de flou. */
+.aurora-blob {
+    position: absolute;
+    border-radius: 9999px;
+    will-change: transform;
+}
+
+.aurora-1 {
+    background: radial-gradient(circle, var(--aurora-1) 0%, transparent 68%);
+    animation: drift-1 34s ease-in-out infinite alternate;
+}
+
+.aurora-2 {
+    background: radial-gradient(circle, var(--aurora-2) 0%, transparent 68%);
+    animation: drift-2 42s ease-in-out infinite alternate;
+}
+
+.aurora-3 {
+    background: radial-gradient(circle, var(--aurora-3) 0%, transparent 68%);
+    animation: drift-3 28s ease-in-out infinite alternate;
+}
+
+.aurora-4 {
+    background: radial-gradient(circle, var(--aurora-4) 0%, transparent 68%);
+    animation: drift-4 46s ease-in-out infinite alternate;
+}
+
+.aurora-grain {
+    background-image: radial-gradient(
+        rgb(255 255 255 / 0.9) 0.6px,
+        transparent 0.6px
+    );
+    background-size: 22px 22px;
+    opacity: 0.4;
+    mask-image: linear-gradient(180deg, black, transparent 75%);
+}
+
+.dark .aurora-grain {
+    opacity: 0.06;
+}
+
+@keyframes drift-1 {
+    from {
+        transform: translate3d(0, 0, 0);
+    }
+    to {
+        transform: translate3d(12vw, 8vh, 0);
+    }
+}
+
+@keyframes drift-2 {
+    from {
+        transform: translate3d(0, 0, 0);
+    }
+    to {
+        transform: translate3d(-10vw, 12vh, 0);
+    }
+}
+
+@keyframes drift-3 {
+    from {
+        transform: translate3d(0, 0, 0);
+    }
+    to {
+        transform: translate3d(8vw, -10vh, 0);
+    }
+}
+
+@keyframes drift-4 {
+    from {
+        transform: translate3d(0, 0, 0);
+    }
+    to {
+        transform: translate3d(-12vw, -6vh, 0);
+    }
+}
+
+/* Bulles qui montent dans les zones héroïques (l'équivalent des flocons). */
+.bubble {
+    position: absolute;
+    bottom: -12%;
+    border-radius: 9999px;
+    background: radial-gradient(
+        circle at 30% 30%,
+        rgb(255 255 255 / 0.95),
+        rgb(255 255 255 / 0.35) 45%,
+        rgb(255 255 255 / 0.08) 70%
+    );
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35);
+    animation-name: bubble-rise;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+    animation-iteration-count: infinite;
+    will-change: transform, opacity;
+}
+
+@keyframes bubble-rise {
+    0% {
+        transform: translate3d(0, 0, 0) scale(0.6);
+        opacity: 0;
+    }
+    10% {
+        opacity: 0.9;
+    }
+    50% {
+        transform: translate3d(var(--sway, 12px), -60vh, 0) scale(1);
+    }
+    90% {
+        opacity: 0.7;
+    }
+    100% {
+        transform: translate3d(calc(var(--sway, 12px) * -0.6), -125vh, 0)
+            scale(1.1);
+        opacity: 0;
+    }
+}
+
+@keyframes skeleton {
+    from {
+        background-position: 200% 0;
+    }
+    to {
+        background-position: -200% 0;
+    }
+}
+
+@keyframes pulse-dot {
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.6);
+        opacity: 0.45;
+    }
+}
+
+.animate-pulse-dot {
+    animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+@keyframes float-y {
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-8px) rotate(-4deg);
+    }
+}
+
+.animate-float {
+    animation: float-y 4s ease-in-out infinite;
+}
+
+@keyframes glint {
+    0% {
+        transform: translateX(-120%) skewX(-18deg);
+    }
+    60%,
+    100% {
+        transform: translateX(260%) skewX(-18deg);
+    }
+}
+
+.animate-glint {
+    animation: glint 4.5s ease-in-out infinite;
+}
+
+@media print {
+    body * {
+        visibility: hidden;
+    }
+
+    .print-area,
+    .print-area * {
+        visibility: visible;
+    }
+
+    .print-area {
+        position: absolute;
+        inset: 0 auto auto 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .bubble,
+    .aurora-blob {
+        display: none;
+    }
+}

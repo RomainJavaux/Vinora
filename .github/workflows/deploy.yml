@@ -1,0 +1,141 @@
+name: deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'deploy ou rollback'
+        required: true
+        default: deploy
+        type: choice
+        options:
+          - deploy
+          - rollback
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    if: ${{ github.event_name == 'push' || inputs.action == 'deploy' }}
+    uses: ./.github/workflows/tests.yml
+
+  deploy:
+    needs: tests
+    if: ${{ always() && (needs.tests.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.action == 'rollback')) }}
+    runs-on: ubuntu-latest
+    environment: production
+
+    env:
+      ACTION: ${{ github.event_name == 'workflow_dispatch' && inputs.action || 'deploy' }}
+      SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+      SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
+      SSH_PORT: ${{ vars.HOSTINGER_SSH_PORT || '65002' }}
+      DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH || vars.HOSTINGER_DEPLOY_PATH }}
+      PUBLIC_HTML: ${{ secrets.HOSTINGER_PUBLIC_HTML || vars.HOSTINGER_PUBLIC_HTML }}
+      PHP_BIN: ${{ vars.HOSTINGER_PHP_BIN || 'php' }}
+      APP_URL: ${{ vars.APP_URL }}
+      HAS_PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV != '' }}
+      HAS_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS != '' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check configuration
+        run: |
+          missing=0
+          for name in SSH_HOST SSH_USER DEPLOY_PATH PUBLIC_HTML; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Le réglage $name est manquant (secret ou variable du dépôt)."
+              missing=1
+            fi
+          done
+          if [ -z "${{ secrets.HOSTINGER_SSH_KEY }}" ]; then
+            echo "::error::Le secret HOSTINGER_SSH_KEY est manquant."
+            missing=1
+          fi
+          exit $missing
+
+      - name: Setup PHP
+        if: env.ACTION == 'deploy'
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, intl, gd, pdo_mysql, zip, bcmath
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        if: env.ACTION == 'deploy'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Build release
+        if: env.ACTION == 'deploy'
+        run: |
+          composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+          npm ci
+          npm run build
+          rm -f public/hot
+          tar --exclude='public/storage' --exclude='public/hot' --exclude='database/*.sqlite' \
+            -czf release.tar.gz app bootstrap config database lang public resources/views routes vendor artisan composer.json composer.lock
+
+      - name: Configure SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          umask 077
+          echo "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/deploy_key
+          if [ "$HAS_KNOWN_HOSTS" = "true" ]; then
+            echo "${{ secrets.HOSTINGER_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" > ~/.ssh/known_hosts 2>/dev/null
+          fi
+
+      - name: Upload production .env
+        if: env.HAS_PRODUCTION_ENV == 'true'
+        run: |
+          umask 077
+          printf '%s\n' "${{ secrets.PRODUCTION_ENV }}" > production.env
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_PATH/shared'"
+          scp -i ~/.ssh/deploy_key -P "$SSH_PORT" production.env "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/shared/.env"
+          rm -f production.env
+
+      - name: Upload release
+        if: env.ACTION == 'deploy'
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_PATH/releases'"
+          scp -i ~/.ssh/deploy_key -P "$SSH_PORT" release.tar.gz "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/release.tar.gz"
+
+      - name: Run remote script
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "ACTION='$ACTION' DEPLOY_PATH='$DEPLOY_PATH' PUBLIC_HTML='$PUBLIC_HTML' PHP_BIN='$PHP_BIN' RELEASE='$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}' bash -s" < deploy/remote.sh
+
+      - name: Health check
+        if: env.APP_URL != ''
+        run: |
+          for i in 1 2 3 4 5; do
+            if curl -fsS "$APP_URL/up" > /dev/null; then
+              echo "Vinora répond 🍷"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::$APP_URL/up ne répond pas. Lance le workflow avec action=rollback pour revenir à la version précédente."
+          exit 1
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
