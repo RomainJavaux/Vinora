@@ -49,6 +49,7 @@ import {
     findCategory,
     findFormat,
     formatPrice,
+    formatQuantity,
     statusColor,
     unitWord,
     useCatalog,
@@ -105,6 +106,14 @@ export default function WineShow({
     const [drinking, setDrinking] = useState<Wine | null>(null);
     const [sheet, setSheet] = useState<Sheet>(null);
     const finished = wine.quantity === 0;
+    // The same wine (same vintage and format) stored in other places.
+    const twins = siblings.filter(
+        (sibling) =>
+            sibling.vintage === wine.vintage &&
+            sibling.format === wine.format &&
+            sibling.category === wine.category,
+    );
+    const elsewhere = twins.reduce((sum, twin) => sum + twin.quantity, 0);
     const open = (name: Sheet) => () => setSheet(name);
     const close = (value: boolean) => !value && setSheet(null);
     const cellar = cellars.find((item) => item.id === wine.location?.cellarId);
@@ -327,6 +336,20 @@ export default function WineShow({
                                 initial={wine.initialQuantity}
                                 className="mt-3"
                             />
+                            {elsewhere > 0 && (
+                                <p className="mt-3 text-sm text-muted-foreground">
+                                    Et{' '}
+                                    <strong className="text-foreground">
+                                        {formatQuantity(
+                                            catalog,
+                                            elsewhere,
+                                            wine.format,
+                                        )}
+                                    </strong>{' '}
+                                    ailleurs dans ta cave, soit{' '}
+                                    {wine.quantity + elsewhere} en tout.
+                                </p>
+                            )}
                             {wine.rating && (
                                 <p className="mt-3 flex items-center gap-2 text-sm">
                                     <StarRating value={wine.rating} size="sm" />
@@ -681,7 +704,11 @@ export default function WineShow({
                 </aside>
             </div>
 
-            <DrinkSheet wine={drinking} onClose={() => setDrinking(null)} />
+            <DrinkSheet
+                wine={drinking}
+                choices={[wine, ...twins]}
+                onClose={() => setDrinking(null)}
+            />
             <GiftSheet
                 key={`gift-${wine.quantity}`}
                 wine={wine}

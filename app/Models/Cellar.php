@@ -24,12 +24,13 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
  * @property string|null $notes
  * @property float|null $temperature
  * @property int|null $humidity
+ * @property int $depth Rows of bottles one behind the other
  * @property int $position
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read Household $household
  */
-#[Fillable(['household_id', 'name', 'type', 'color', 'location', 'notes', 'temperature', 'humidity', 'position'])]
+#[Fillable(['household_id', 'name', 'type', 'color', 'location', 'notes', 'temperature', 'humidity', 'depth', 'position'])]
 class Cellar extends Model
 {
     /** @use HasFactory<CellarFactory> */
@@ -44,6 +45,7 @@ class Cellar extends Model
             'type' => CellarType::class,
             'temperature' => 'float',
             'humidity' => 'integer',
+            'depth' => 'integer',
             'position' => 'integer',
         ];
     }

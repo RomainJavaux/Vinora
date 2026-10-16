@@ -49,7 +49,7 @@ class DashboardController extends Controller
             'drunkThisMonth' => (int) ($monthly[MovementType::Drunk->value] ?? 0) + (int) ($monthly[MovementType::Gifted->value] ?? 0),
             'valueCents' => $value,
             'liters' => round($stock->sum(fn (Wine $wine) => $wine->format->milliliters() * $wine->quantity) / 1000, 1),
-            'capacity' => (int) $cellars->sum(fn ($cellar) => $cellar->compartments->sum('capacity')),
+            'capacity' => (int) $cellars->sum(fn ($cellar) => $cellar->compartments->sum('capacity') * max(1, $cellar->depth)),
         ];
 
         $priority = $stock

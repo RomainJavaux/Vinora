@@ -40,7 +40,8 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
     const [youngOnly, setYoungOnly] = useState(false);
     const [cellarId, setCellarId] = useState<number | null>(null);
     const [category, setCategory] = useState<CategoryValue | null>(null);
-    const [drinking, setDrinking] = useState<Wine | null>(null);
+    // The lots of the wine being opened (several when it is in several places).
+    const [drinking, setDrinking] = useState<Wine[] | null>(null);
 
     useEffect(() => {
         if (new URLSearchParams(window.location.search).get('focus') === '1') {
@@ -103,6 +104,22 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
     );
 
     const results = tab === 'finished' ? filtered : sortWines(filtered);
+
+    // The same wine stored in several places is shown once, with every place.
+    const groups =
+        tab === 'stock'
+            ? results.reduce<Wine[][]>((list, wine) => {
+                  const group = list.find((lots) => sameWine(lots[0], wine));
+
+                  if (group) {
+                      group.push(wine);
+                  } else {
+                      list.push([wine]);
+                  }
+
+                  return list;
+              }, [])
+            : results.map((wine) => [wine]);
 
     const filtering =
         urgentOnly ||
@@ -272,9 +289,9 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
             <div className="mb-3 flex items-center justify-between gap-3 text-sm text-muted-foreground">
                 <p>
                     <strong className="text-foreground tabular-nums">
-                        {results.length}
+                        {groups.length}
                     </strong>{' '}
-                    référence{results.length > 1 ? 's' : ''}
+                    référence{groups.length > 1 ? 's' : ''}
                     {tab === 'stock' && (
                         <>
                             {' · '}
@@ -334,13 +351,16 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
             ) : (
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                     <AnimatePresence mode="popLayout">
-                        {results.map((wine, index) =>
+                        {groups.map(([wine, ...others], index) =>
                             tab === 'stock' ? (
                                 <WineRow
                                     key={wine.id}
                                     wine={wine}
+                                    lots={[wine, ...others]}
                                     index={index}
-                                    onDrink={setDrinking}
+                                    onDrink={() =>
+                                        setDrinking([wine, ...others])
+                                    }
                                 />
                             ) : (
                                 <WineRow
@@ -383,7 +403,27 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
                 </div>
             )}
 
-            <DrinkSheet wine={drinking} onClose={() => setDrinking(null)} />
+            <DrinkSheet
+                wine={drinking?.[0] ?? null}
+                choices={drinking ?? undefined}
+                onClose={() => setDrinking(null)}
+            />
         </>
     );
+}
+
+/** Same cuvée, vintage and format: the same wine in another place. */
+function sameWine(a: Wine, b: Wine): boolean {
+    const key = (wine: Wine) =>
+        [
+            wine.name,
+            wine.producer ?? '',
+            wine.vintage ?? '',
+            wine.format,
+            wine.category,
+        ]
+            .join('|')
+            .toLowerCase();
+
+    return key(a) === key(b);
 }

@@ -92,10 +92,21 @@ enum CellarType: string
     public function maxCapacity(): int
     {
         return match ($this) {
-            self::Cabinet, self::Service => 24,
-            self::Rack => 30,
+            self::Cabinet => 60,
+            self::Service, self::Rack => 30,
             self::Vault => 300,
         };
+    }
+
+    /** Bottles can be stored one behind the other (not in vault bins). */
+    public function hasDepth(): bool
+    {
+        return $this !== self::Vault;
+    }
+
+    public function maxDepth(): int
+    {
+        return $this->hasDepth() ? 4 : 1;
     }
 
     /** Temperature shown on the display when none was recorded. */

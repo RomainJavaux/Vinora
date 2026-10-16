@@ -22,7 +22,7 @@ class SaveCellar
     public function handle(Household $household, array $data, ?Cellar $cellar = null): Cellar
     {
         return DB::transaction(function () use ($household, $data, $cellar) {
-            $attributes = Arr::only($data, ['name', 'type', 'color', 'location', 'notes', 'temperature', 'humidity']);
+            $attributes = Arr::only($data, ['name', 'type', 'color', 'location', 'notes', 'temperature', 'humidity', 'depth']);
 
             if ($cellar === null) {
                 $cellar = new Cellar([
@@ -34,6 +34,7 @@ class SaveCellar
                 $cellar->fill($attributes);
             }
 
+            $cellar->depth = max(1, min((int) ($cellar->depth ?: 1), $cellar->type->maxDepth()));
             $cellar->save();
 
             /** @var list<array{id?: int|null, name: string, color?: string|null, capacity?: int|null}> $compartments */

@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { useState } from 'react';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Textarea } from '@/components/ui/input';
 import { StarRating } from '@/components/ui/pickers';
 import { Stepper } from '@/components/ui/stepper';
@@ -21,9 +22,12 @@ const ratingWords = ['', 'Bof', 'Correct', 'Bon', 'Très bon', 'Coup de cœur !'
  */
 export function DrinkSheet({
     wine,
+    choices,
     onClose,
 }: {
     wine: Wine | null;
+    /** Every lot of the same wine, when it is stored in several places. */
+    choices?: Wine[];
     onClose: () => void;
 }) {
     return (
@@ -55,8 +59,62 @@ export function DrinkSheet({
                 )
             }
         >
-            {wine && <DrinkForm key={wine.id} wine={wine} onDone={onClose} />}
+            {wine && (
+                <DrinkBody
+                    key={wine.id}
+                    wine={wine}
+                    choices={choices}
+                    onDone={onClose}
+                />
+            )}
         </BottomSheet>
+    );
+}
+
+/** When the wine is in several places, ask where the bottle comes from. */
+function DrinkBody({
+    wine,
+    choices,
+    onDone,
+}: {
+    wine: Wine;
+    choices?: Wine[];
+    onDone: () => void;
+}) {
+    const lots = (choices && choices.length > 1 ? choices : [wine]).filter(
+        (lot) => lot.quantity > 0,
+    );
+    const [lotId, setLotId] = useState(wine.id);
+    const lot = lots.find((item) => item.id === lotId) ?? wine;
+
+    return (
+        <>
+            {lots.length > 1 && (
+                <div className="mb-5">
+                    <p className="mb-2 text-center text-sm font-semibold text-muted-foreground">
+                        D’où la prends-tu ?
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                        {lots.map((item) => (
+                            <Chip
+                                key={item.id}
+                                size="sm"
+                                active={item.id === lot.id}
+                                onClick={() => setLotId(item.id)}
+                            >
+                                {item.location
+                                    ? `${item.location.cellarName} › ${item.location.compartmentName}`
+                                    : 'À ranger'}
+                                <span className="tabular-nums opacity-75">
+                                    · {item.quantity}
+                                </span>
+                            </Chip>
+                        ))}
+                    </div>
+                </div>
+            )}
+            <DrinkForm key={lot.id} wine={lot} onDone={onDone} />
+        </>
     );
 }
 

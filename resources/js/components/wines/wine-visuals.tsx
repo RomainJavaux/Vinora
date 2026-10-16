@@ -477,11 +477,17 @@ export function LocationPill({
     location,
     wineId,
     link = true,
+    short = false,
+    count,
     className,
 }: {
     location: WineLocation | null;
     wineId?: number;
     link?: boolean;
+    /** Only the compartment name (when a wine is in several places). */
+    short?: boolean;
+    /** Bottles stored there. */
+    count?: number;
     className?: string;
 }) {
     const catalog = useCatalog();
@@ -511,9 +517,18 @@ export function LocationPill({
             >
                 <MapPin className="size-2 text-white" strokeWidth={3} />
             </span>
-            <span className="truncate">{location.cellarName}</span>
-            <span className="text-muted-foreground">›</span>
+            {!short && (
+                <>
+                    <span className="truncate">{location.cellarName}</span>
+                    <span className="text-muted-foreground">›</span>
+                </>
+            )}
             <span className="truncate">{location.compartmentName}</span>
+            {count !== undefined && (
+                <span className="text-muted-foreground tabular-nums">
+                    · {count}
+                </span>
+            )}
         </>
     );
 

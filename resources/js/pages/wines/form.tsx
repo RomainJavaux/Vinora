@@ -11,6 +11,8 @@ import { Input, Textarea } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Stepper } from '@/components/ui/stepper';
 import { LocationPicker } from '@/components/wines/location-picker';
+import { SplitPlaces } from '@/components/wines/split-places';
+import type { Placement } from '@/components/wines/split-places';
 import { BottleArt, WineHero } from '@/components/wines/wine-visuals';
 import {
     findAging,
@@ -68,6 +70,7 @@ type FormData = {
     tags: string[];
     compartment_id: number | null;
     from: number | null;
+    placements?: { compartment_id: number; quantity: number }[];
 };
 
 const euros = (cents: number | null) =>
@@ -126,6 +129,12 @@ export default function WineForm({
     const vintageRef = useRef<HTMLDivElement>(null);
     // A single location picker is mounted, in the column that fits the screen.
     const isDesktop = useIsDesktop();
+    // Bottles stored in other places when the main one is too small.
+    const [placements, setPlacements] = useState<Placement[]>([]);
+    const elsewhere = placements.reduce(
+        (sum, placement) => sum + placement.quantity,
+        0,
+    );
 
     const category = findCategory(catalog, data.category);
     const aging = data.aging ?? category.aging;
@@ -231,6 +240,20 @@ export default function WineForm({
             drink_from: windowValue.from,
             drink_until: windowValue.until,
             aging: manualWindow ? current.aging : aging,
+            ...(editing
+                ? {}
+                : {
+                      placements: placements
+                          .filter(
+                              (placement) =>
+                                  placement.compartmentId !==
+                                  current.compartment_id,
+                          )
+                          .map((placement) => ({
+                              compartment_id: placement.compartmentId,
+                              quantity: placement.quantity,
+                          })),
+                  }),
             ...(editing ? { _method: 'put' } : {}),
         }));
 
@@ -261,9 +284,22 @@ export default function WineForm({
                 extra={
                     editing && wine?.compartmentId === data.compartment_id
                         ? 0
-                        : data.quantity
+                        : data.quantity - elsewhere
                 }
             />
+            {!editing && (
+                <SplitPlaces
+                    cellars={cellars}
+                    mainId={data.compartment_id}
+                    quantity={data.quantity}
+                    placements={placements.filter(
+                        (placement) =>
+                            placement.compartmentId !== data.compartment_id,
+                    )}
+                    onChange={setPlacements}
+                    error={errors.placements}
+                />
+            )}
         </FormSection>
     );
 
@@ -1009,6 +1045,9 @@ export default function WineForm({
                             {location
                                 ? location.compartment.name
                                 : 'choisis une clayette'}
+                            {location && placements.length > 0
+                                ? ` + ${placements.length} autre${placements.length > 1 ? 's' : ''}`
+                                : ''}
                         </span>
                     </p>
                     <Button

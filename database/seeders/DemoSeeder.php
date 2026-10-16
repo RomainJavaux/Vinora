@@ -62,12 +62,12 @@ class DemoSeeder extends Seeder
             'temperature' => 12,
             'humidity' => 68,
             'compartments' => [
-                ['name' => 'Grands bordeaux', 'capacity' => 8],
-                ['name' => 'Bourgognes', 'capacity' => 8],
-                ['name' => 'Rhône & Sud', 'capacity' => 8],
-                ['name' => 'Blancs', 'capacity' => 8],
-                ['name' => 'Bulles', 'capacity' => 8],
-                ['name' => 'Magnums', 'capacity' => 4],
+                ['name' => 'Grands bordeaux', 'capacity' => 16],
+                ['name' => 'Bourgognes', 'capacity' => 16],
+                ['name' => 'Rhône & Sud', 'capacity' => 16],
+                ['name' => 'Blancs', 'capacity' => 16],
+                ['name' => 'Bulles', 'capacity' => 16],
+                ['name' => 'Magnums', 'capacity' => 6],
             ],
         ]);
 
@@ -95,6 +95,7 @@ class DemoSeeder extends Seeder
             'color' => 'gold',
             'location' => 'Cuisine',
             'temperature' => 9,
+            'depth' => 2,
             'compartments' => [
                 ['name' => 'Bulles & blancs', 'capacity' => 6],
                 ['name' => 'Rosés', 'capacity' => 6],

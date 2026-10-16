@@ -85,17 +85,33 @@ class WineController extends Controller
             ? Wine::query()->where('household_id', $household->id)->find($request->integer('from'))
             : null;
 
-        $wine = $inventory->add(
-            $household,
-            $this->user($request),
-            $request->wineData(),
-            $request->file('photo'),
-            $source,
-        );
+        $user = $this->user($request);
+        $data = $request->wineData();
+
+        // Some bottles may go elsewhere when there is not enough room: one
+        // lot per place, bottles for the main place first.
+        $placements = collect($request->placements())
+            ->groupBy('compartment_id')
+            ->map(fn ($rows) => (int) $rows->sum('quantity'));
+        $mainCompartment = (int) $data['compartment_id'];
+        $elsewhere = $placements->except([$mainCompartment]);
+        $data['quantity'] = (int) $data['quantity'] - (int) $elsewhere->sum();
+
+        $wine = $inventory->add($household, $user, $data, $request->file('photo'), $source);
+        $places = [$wine->load('compartment')->compartment?->name];
+
+        foreach ($elsewhere as $compartmentId => $quantity) {
+            $lot = $inventory->add($household, $user, [...$data, 'compartment_id' => $compartmentId, 'quantity' => $quantity], null, $wine);
+            $places[] = $lot->load('compartment')->compartment?->name;
+        }
 
         $wine->load('compartment.cellar');
 
-        $this->toast("{$wine->fullName()} rangé dans {$wine->compartment?->name} 🍷");
+        $where = count($places) > 1
+            ? implode(', ', array_slice($places, 0, -1)).' et '.end($places)
+            : $places[0];
+
+        $this->toast("{$wine->fullName()} rangé dans {$where} 🍷");
         $this->celebrate();
 
         return redirect()->route('cellars.show', [

@@ -12,6 +12,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class WineRequest extends FormRequest
 {
@@ -71,7 +72,47 @@ class WineRequest extends FormRequest
             'tags' => ['nullable', 'array', 'max:'.self::MAX_TAGS],
             'tags.*' => ['string', 'max:30'],
             'compartment_id' => ['required', 'integer', $household instanceof Household ? new CompartmentInHousehold($household) : 'prohibited'],
+            'placements' => [$creating ? 'nullable' : 'prohibited', 'array', 'max:10'],
+            'placements.*.compartment_id' => ['required', 'integer', $household instanceof Household ? new CompartmentInHousehold($household) : 'prohibited'],
+            'placements.*.quantity' => ['required', 'integer', 'min:1'],
         ];
+    }
+
+    /**
+     * The bottles put elsewhere must leave at least one in the main place.
+     *
+     * @return list<callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator) {
+                $extra = array_sum(array_column($this->placements(), 'quantity'));
+
+                if ($extra > 0 && $extra >= (int) $this->input('quantity')) {
+                    $validator->errors()->add('placements', 'Garde au moins une bouteille au premier emplacement.');
+                }
+            },
+        ];
+    }
+
+    /**
+     * Other places where some of the bottles go (same wine, several lots).
+     *
+     * @return list<array{compartment_id: int, quantity: int}>
+     */
+    public function placements(): array
+    {
+        $placements = $this->input('placements');
+
+        if (! is_array($placements)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(fn (mixed $placement) => is_array($placement) ? [
+            'compartment_id' => (int) ($placement['compartment_id'] ?? 0),
+            'quantity' => (int) ($placement['quantity'] ?? 0),
+        ] : null, $placements)));
     }
 
     /**
@@ -98,6 +139,9 @@ class WineRequest extends FormRequest
             'drink_until' => 'fin de la fenêtre',
             'tags' => 'étiquettes',
             'compartment_id' => 'emplacement',
+            'placements' => 'autres emplacements',
+            'placements.*.quantity' => 'nombre de bouteilles',
+            'placements.*.compartment_id' => 'emplacement',
         ];
     }
 
@@ -118,7 +162,7 @@ class WineRequest extends FormRequest
      */
     public function wineData(): array
     {
-        $data = Arr::except($this->validated(), ['photo', 'remove_photo', 'price', 'value']);
+        $data = Arr::except($this->validated(), ['photo', 'remove_photo', 'price', 'value', 'placements']);
 
         foreach (['price' => 'price_cents', 'value' => 'value_cents'] as $input => $column) {
             if ($this->has($input)) {

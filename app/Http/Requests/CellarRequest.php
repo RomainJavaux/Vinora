@@ -43,6 +43,7 @@ class CellarRequest extends FormRequest
             "{$prefix}notes" => ['nullable', 'string', 'max:1000'],
             "{$prefix}temperature" => ['nullable', 'numeric', 'between:-5,30'],
             "{$prefix}humidity" => ['nullable', 'integer', 'between:0,100'],
+            "{$prefix}depth" => ['nullable', 'integer', 'between:1,'.($type?->maxDepth() ?? 4)],
             "{$prefix}compartments" => [$presence, 'array', 'min:1', "max:{$max}"],
             "{$prefix}compartments.*.id" => ['nullable', 'integer'],
             "{$prefix}compartments.*.name" => ['required', 'string', 'max:40'],

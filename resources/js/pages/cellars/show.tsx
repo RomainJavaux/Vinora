@@ -195,6 +195,13 @@ export default function CellarShow({ cellar, focus }: Props) {
                                     }}
                                 />
                             </div>
+                            {cellar.depth > 1 && (
+                                <p className="mt-2 text-[12px] text-muted-foreground">
+                                    {cellar.depth} rangées en profondeur : les
+                                    bouteilles de derrière sont comptées dans «
+                                    +N derrière ».
+                                </p>
+                            )}
                         </div>
                     )}
 

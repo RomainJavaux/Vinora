@@ -15,6 +15,8 @@ import type { Wine } from '@/types/models';
 
 type Props = {
     wine: Wine;
+    /** Every lot of this wine when it is stored in several places. */
+    lots?: Wine[];
     index?: number;
     onDrink?: (wine: Wine) => void;
     highlighted?: boolean;
@@ -31,6 +33,7 @@ type Props = {
  */
 export function WineRow({
     wine,
+    lots,
     index = 0,
     onDrink,
     highlighted = false,
@@ -41,6 +44,8 @@ export function WineRow({
     className,
 }: Props) {
     const catalog = useCatalog();
+    const places = lots && lots.length > 1 ? lots : [wine];
+    const total = places.reduce((sum, lot) => sum + lot.quantity, 0);
     const origin = [
         wine.vintage ?? 'Non millésimé',
         wine.appellation ?? wine.region,
@@ -105,10 +110,12 @@ export function WineRow({
                     {subtitle ?? (
                         <>
                             <span className="text-[13px] font-bold tabular-nums">
-                                {formatQuantity(
-                                    catalog,
-                                    wine.quantity,
-                                    wine.format,
+                                {formatQuantity(catalog, total, wine.format)}
+                                {places.length > 1 && (
+                                    <span className="font-semibold text-muted-foreground">
+                                        {' '}
+                                        · {places.length} endroits
+                                    </span>
                                 )}
                             </span>
                             <WindowBadge window={wine.window} />
@@ -117,17 +124,24 @@ export function WineRow({
                     )}
                 </div>
                 {showLocation && (
-                    <div className="mt-1.5 flex min-w-0">
-                        <LocationPill
-                            location={wine.location}
-                            wineId={wine.id}
-                        />
+                    <div className="mt-1.5 flex min-w-0 flex-wrap gap-1">
+                        {places.map((lot) => (
+                            <LocationPill
+                                key={lot.id}
+                                location={lot.location}
+                                wineId={lot.id}
+                                short={places.length > 1}
+                                count={
+                                    places.length > 1 ? lot.quantity : undefined
+                                }
+                            />
+                        ))}
                     </div>
                 )}
             </div>
 
             {action ??
-                (onDrink && wine.quantity > 0 && (
+                (onDrink && total > 0 && (
                     <button
                         type="button"
                         onClick={() => onDrink(wine)}

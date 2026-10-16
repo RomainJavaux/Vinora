@@ -101,7 +101,10 @@ export type Compartment = {
     id: number;
     name: string;
     color: PaletteKey | null;
+    /** Every place, rows behind included. */
     capacity: number | null;
+    /** Places seen from the front. */
+    frontCapacity: number | null;
     position: number;
     itemsCount: number;
     units: number;
@@ -119,6 +122,8 @@ export type Cellar = {
     notes: string | null;
     temperature: number | null;
     humidity: number | null;
+    /** Rows of bottles one behind the other. */
+    depth: number;
     position: number;
     compartments: Compartment[];
     stats: { items: number; units: number; urgent: number; capacity: number };
@@ -134,6 +139,7 @@ export type CellarOption = {
         name: string;
         position: number;
         capacity: number | null;
+        frontCapacity: number | null;
         itemsCount: number;
         units: number;
         previewBottles: CategoryValue[];
@@ -221,6 +227,7 @@ export type CellarTypeOption = {
     defaultCapacity: number;
     maxCapacity: number;
     temperature: number | null;
+    maxDepth: number;
 };
 
 export type AgingOption = {

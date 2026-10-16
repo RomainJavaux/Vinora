@@ -16,7 +16,10 @@ export type VisualCompartment = {
     name: string;
     itemsCount?: number;
     units?: number;
+    /** Every place, rows behind included. */
     capacity?: number | null;
+    /** Places seen from the front (drawn). */
+    frontCapacity?: number | null;
     previewBottles?: CategoryValue[];
     urgentCount?: number;
 };
@@ -162,6 +165,10 @@ function Cabinet({ service, ...props }: PartProps & { service: boolean }) {
     const tiny = size === 'xs';
     const radius = size === 'lg' || size === 'md' ? 30 : size === 'sm' ? 20 : 9;
     const h = shelfHeight(size, compartments.length);
+    const pad = tiny ? 3 : size === 'sm' ? 6 : 10;
+    const inner = tiny ? 2 : size === 'sm' ? 4 : 7;
+    const innerWidth =
+        WIDTHS[service ? 'service' : 'cabinet'][size] - 2 * (pad + inner) - 4;
 
     return (
         <div className="relative">
@@ -232,6 +239,7 @@ function Cabinet({ service, ...props }: PartProps & { service: boolean }) {
                                         compartment={compartment}
                                         index={index}
                                         height={h}
+                                        innerWidth={innerWidth}
                                     />
                                 </Compartment>
                             ))}
@@ -296,6 +304,7 @@ function Shelf({
     compartment,
     index,
     height,
+    innerWidth,
     size,
     catalog,
     tint,
@@ -304,6 +313,7 @@ function Shelf({
     compartment: VisualCompartment;
     index: number;
     height: number;
+    innerWidth: number;
 }) {
     const tiny = size === 'xs';
     const strip = tiny
@@ -317,18 +327,26 @@ function Shelf({
               : 18;
     const dotsArea = Math.max(2, height - strip - (tiny ? 0 : 4));
     const units = compartment.units ?? compartment.previewBottles?.length ?? 0;
-    const slots = compartment.capacity ?? Math.max(units, 6);
+    const front =
+        compartment.frontCapacity ?? compartment.capacity ?? Math.max(units, 6);
+    const total = compartment.capacity ?? front;
+    const gap = tiny ? 0.5 : size === 'sm' ? 1 : 2;
     const showText = size === 'lg' || (size === 'md' && height >= 34);
 
     return (
-        <div className="relative flex flex-col justify-end" style={{ height }}>
-            <BottleRow
+        <div
+            className="relative flex flex-col justify-end"
+            style={{ minHeight: height }}
+        >
+            <BottlePile
                 catalog={catalog}
                 bottles={compartment.previewBottles ?? []}
                 units={units}
-                slots={slots}
+                front={front}
+                total={total}
                 maxDot={dotsArea}
-                gap={tiny ? 0.5 : size === 'sm' ? 1 : 2}
+                perRowMax={Math.floor(innerWidth / (COMFORT_DOT[size] + gap))}
+                gap={gap}
                 delay={animateOpening ? 0.5 + index * 0.06 : 0}
                 animate={animateOpening}
             />
@@ -408,6 +426,12 @@ function Rack(props: PartProps) {
     const { size, compartments, name, tint } = props;
     const tiny = size === 'xs';
     const h = shelfHeight(size, compartments.length) - (tiny ? 0 : 4);
+    const innerWidth =
+        WIDTHS.rack[size] -
+        2 *
+            ((tiny ? 3 : size === 'sm' ? 6 : 10) +
+                (tiny ? 1.5 : size === 'sm' ? 3 : 6)) -
+        8;
 
     return (
         <div className="relative">
@@ -459,6 +483,7 @@ function Rack(props: PartProps) {
                                         compartment={compartment}
                                         index={index}
                                         height={h}
+                                        innerWidth={innerWidth}
                                     />
                                 </Compartment>
                             ))}
@@ -474,6 +499,7 @@ function RackRow({
     compartment,
     index,
     height,
+    innerWidth,
     size,
     catalog,
     tint,
@@ -482,17 +508,23 @@ function RackRow({
     compartment: VisualCompartment;
     index: number;
     height: number;
+    innerWidth: number;
 }) {
     const tiny = size === 'xs';
     const units = compartment.units ?? compartment.previewBottles?.length ?? 0;
-    const slots = compartment.capacity ?? Math.max(units, 6);
+    const front =
+        compartment.frontCapacity ?? compartment.capacity ?? Math.max(units, 6);
+    const total = compartment.capacity ?? front;
     const label = size === 'lg' || (size === 'md' && height >= 30);
+    const pileWidth = label ? innerWidth * 0.62 : innerWidth;
+    const gap = tiny ? 0.5 : 2;
 
     return (
         <div
             className="relative flex items-center"
             style={{
-                height,
+                minHeight: height,
+                paddingBlock: tiny ? 0 : 3,
                 borderBottom: tiny ? undefined : '3px solid var(--wood-dark)',
                 gap: 6,
             }}
@@ -505,13 +537,17 @@ function RackRow({
                 className="min-w-0 flex-1"
                 style={{ paddingLeft: tiny ? 2 : 6 }}
             >
-                <BottleRow
+                <BottlePile
                     catalog={catalog}
                     bottles={compartment.previewBottles ?? []}
                     units={units}
-                    slots={slots}
+                    front={front}
+                    total={total}
                     maxDot={Math.max(2, height - (tiny ? 1 : 6))}
-                    gap={tiny ? 0.5 : 2}
+                    perRowMax={Math.floor(
+                        pileWidth / (COMFORT_DOT[size] + gap),
+                    )}
+                    gap={gap}
                     delay={animateOpening ? 0.3 + index * 0.08 : 0}
                     animate={animateOpening}
                     pop
@@ -783,13 +819,58 @@ function dotStyle(
     };
 }
 
-/** One row of bottle bottoms seen from the front, empty slots outlined. */
-function BottleRow({
+/** Bottle size that stays readable, per illustration size. */
+const COMFORT_DOT: Record<VisualSize, number> = {
+    xs: 4,
+    sm: 8,
+    md: 13,
+    lg: 19,
+};
+
+/**
+ * Rows of a pile of bottles, bottom row first. When a shelf holds more
+ * bottles than fit side by side, they are stacked in staggered rows like
+ * in a real wine fridge (each upper row has one bottle less).
+ */
+export function pileRows(front: number, perRowMax: number): number[] {
+    const total = Math.max(1, front);
+    const max = Math.max(1, perRowMax);
+    let layers = Math.ceil(total / max);
+    let perRow = Math.ceil((total + Math.floor(layers / 2)) / layers);
+
+    while (perRow > max && layers < 20) {
+        layers += 1;
+        perRow = Math.ceil((total + Math.floor(layers / 2)) / layers);
+    }
+
+    const rows: number[] = [];
+    let remaining = total;
+
+    for (let i = 0; remaining > 0; i++) {
+        const count = Math.min(
+            remaining,
+            i % 2 === 1 && perRow > 1 ? perRow - 1 : perRow,
+        );
+        rows.push(count);
+        remaining -= count;
+    }
+
+    return rows;
+}
+
+/**
+ * Bottle bottoms seen from the front, piled up when needed. Empty places
+ * are outlined; bottles stored behind the front row and bottles beyond the
+ * capacity are counted in small badges.
+ */
+function BottlePile({
     catalog,
     bottles,
     units,
-    slots,
+    front,
+    total,
     maxDot,
+    perRowMax,
     gap,
     delay,
     animate,
@@ -798,21 +879,30 @@ function BottleRow({
     catalog: Catalog;
     bottles: CategoryValue[];
     units: number;
-    slots: number;
+    /** Places seen from the front (drawn). */
+    front: number;
+    /** All the places, including the rows behind. */
+    total: number;
     maxDot: number;
+    perRowMax: number;
     gap: number;
     delay: number;
     animate: boolean;
     pop?: boolean;
 }) {
-    const shown = Math.max(1, Math.min(slots, 40));
-    const overflow = Math.max(0, units - shown);
-    const dot = `min(${maxDot}px, calc((100% - ${(shown - 1) * gap}px) / ${shown}))`;
+    const drawn = Math.max(1, Math.min(front, 90));
+    const rows = pileRows(drawn, perRowMax);
+    const perRow = rows[0];
+    const behind = Math.max(0, Math.min(units, total) - drawn);
+    const overflow = Math.max(0, units - Math.max(total, drawn));
+    const dot = `min(${maxDot}px, calc((100% - ${(perRow - 1) * gap}px) / ${perRow}))`;
+    const starts = rows.map((_, index) =>
+        rows.slice(0, index).reduce((sum, count) => sum + count, 0),
+    );
 
     return (
         <motion.div
-            className="relative flex items-end justify-center"
-            style={{ gap }}
+            className="relative flex flex-col-reverse"
             initial={
                 animate
                     ? pop
@@ -823,29 +913,61 @@ function BottleRow({
             animate={animate ? { opacity: 1, y: 0, scale: 1 } : undefined}
             transition={{ delay, type: 'spring', stiffness: 300, damping: 24 }}
         >
-            {Array.from({ length: shown }, (_, i) => {
-                const filled = i < units;
-                const category = filled
-                    ? (bottles[i] ?? bottles[bottles.length - 1] ?? 'red')
-                    : null;
+            {rows.map((count, row) => (
+                <div
+                    key={row}
+                    className="flex justify-center"
+                    style={{
+                        gap,
+                        // Upper rows sink a little between the bottles below.
+                        marginBottom: row === 0 ? 0 : `calc(${dot} * -0.14)`,
+                    }}
+                >
+                    {Array.from({ length: count }, (_, i) => {
+                        const slot = starts[row] + i;
+                        const filled = slot < units;
+                        const category = filled
+                            ? (bottles[slot] ??
+                              bottles[bottles.length - 1] ??
+                              'red')
+                            : null;
 
-                return (
-                    <span
-                        key={i}
-                        className="aspect-square shrink-0 rounded-full"
-                        style={{ width: dot, ...dotStyle(catalog, category) }}
-                    />
-                );
-            })}
-            {overflow > 0 && (
-                <span className="absolute -top-1 right-0 rounded-full bg-warm px-1 text-[9px] font-extrabold text-warm-foreground tabular-nums shadow">
-                    +{overflow}
+                        return (
+                            <span
+                                key={i}
+                                className="aspect-square shrink-0 rounded-full"
+                                style={{
+                                    width: dot,
+                                    ...dotStyle(catalog, category),
+                                }}
+                            />
+                        );
+                    })}
+                </div>
+            ))}
+            {(behind > 0 || overflow > 0) && (
+                <span className="absolute -top-1.5 right-0 z-[1] flex gap-1">
+                    {behind > 0 && (
+                        <span
+                            className="rounded-full bg-black/55 px-1 text-[9px] font-bold text-white tabular-nums shadow"
+                            title={`${behind} bouteille${behind > 1 ? 's' : ''} derrière`}
+                        >
+                            +{behind} derrière
+                        </span>
+                    )}
+                    {overflow > 0 && (
+                        <span
+                            className="rounded-full bg-warm px-1 text-[9px] font-extrabold text-warm-foreground tabular-nums shadow"
+                            title="Au-delà de la capacité"
+                        >
+                            +{overflow}
+                        </span>
+                    )}
                 </span>
             )}
         </motion.div>
     );
 }
-
 /** Bottles piled up in a bin, from the bottom. */
 function BottleStack({
     catalog,

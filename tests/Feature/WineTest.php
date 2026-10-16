@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\MovementType;
 use App\Models\Wine;
+use App\Models\WineMovement;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -63,6 +64,49 @@ class WineTest extends TestCase
         $this->assertSame(6, $movement->quantity);
         $this->assertSame($compartment->id, $movement->to_compartment_id);
         $this->assertSame(2016, $movement->wine_vintage);
+    }
+
+    public function test_bottles_can_be_spread_over_several_places(): void
+    {
+        [$user, , $cellar] = $this->userWithCellar();
+        [$first, $second, $third] = $cellar->compartments->all();
+
+        $this->actingAs($user)->post(route('wines.store'), [
+            'name' => 'Pinot Gris Les Princes Abbés',
+            'producer' => 'Domaines Schlumberger',
+            'category' => 'white',
+            'vintage' => 2022,
+            'quantity' => 12,
+            'format' => 'standard',
+            'compartment_id' => $first->id,
+            'placements' => [
+                ['compartment_id' => $second->id, 'quantity' => 5],
+                ['compartment_id' => $third->id, 'quantity' => 2],
+            ],
+        ])->assertRedirect()->assertInertiaFlash('toast.message', 'Pinot Gris Les Princes Abbés 2022 rangé dans Clayette 1, Clayette 2 et Clayette 3 🍷');
+
+        $lots = Wine::query()->orderBy('id')->get();
+        $this->assertSame([5, 5, 2], $lots->pluck('quantity')->all());
+        $this->assertSame([$first->id, $second->id, $third->id], $lots->pluck('compartment_id')->all());
+        $this->assertSame(1, $lots->pluck('name')->unique()->count());
+        $this->assertSame(3, WineMovement::query()->where('type', 'added')->count());
+    }
+
+    public function test_at_least_one_bottle_stays_in_the_main_place(): void
+    {
+        [$user, , $cellar] = $this->userWithCellar();
+        [$first, $second] = $cellar->compartments->all();
+
+        $this->actingAs($user)->post(route('wines.store'), [
+            'name' => 'Riesling',
+            'category' => 'white',
+            'quantity' => 3,
+            'format' => 'standard',
+            'compartment_id' => $first->id,
+            'placements' => [['compartment_id' => $second->id, 'quantity' => 3]],
+        ])->assertSessionHasErrors('placements');
+
+        $this->assertSame(0, Wine::query()->count());
     }
 
     public function test_the_compartment_must_belong_to_the_household(): void

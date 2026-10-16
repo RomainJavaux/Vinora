@@ -33,6 +33,8 @@ export type ConfiguratorValue = {
     notes: string;
     temperature: string;
     humidity: string;
+    /** Rows of bottles one behind the other. */
+    depth: number;
     compartments: ConfiguratorCompartment[];
 };
 
@@ -72,6 +74,7 @@ export function toPayload(value: ConfiguratorValue) {
                 ? null
                 : value.temperature.replace(',', '.'),
         humidity: value.humidity.trim() === '' ? null : value.humidity,
+        depth: value.depth,
         compartments: value.compartments.map((compartment) => ({
             id: compartment.id ?? null,
             name: compartment.name.trim() || 'Sans nom',
@@ -188,6 +191,7 @@ export function CellarConfigurator({
     const capacities = value.compartments.map(
         (compartment) => compartment.capacity,
     );
+    const depth = type.maxDepth > 1 ? Math.min(value.depth, type.maxDepth) : 1;
     const sharedCapacity = capacities.every(
         (capacity) => capacity === capacities[0],
     )
@@ -215,7 +219,8 @@ export function CellarConfigurator({
                 compartments={value.compartments.map((compartment) => ({
                     id: compartment.key,
                     name: compartment.name || 'Sans nom',
-                    capacity: compartment.capacity,
+                    capacity: compartment.capacity * depth,
+                    frontCapacity: compartment.capacity,
                     units: 0,
                 }))}
             />
@@ -224,7 +229,9 @@ export function CellarConfigurator({
                 {value.compartments.length > 1
                     ? type.compartmentPlural
                     : type.compartment.toLowerCase()}{' '}
-                · {capacities.reduce((sum, capacity) => sum + capacity, 0)}{' '}
+                ·{' '}
+                {capacities.reduce((sum, capacity) => sum + capacity, 0) *
+                    depth}{' '}
                 places
             </p>
         </div>
@@ -321,11 +328,12 @@ export function CellarConfigurator({
                         <div className="surface flex items-center justify-between gap-4 p-4">
                             <div className="min-w-0">
                                 <p className="font-semibold">
-                                    Places par {type.compartment.toLowerCase()}
+                                    Bouteilles de face par{' '}
+                                    {type.compartment.toLowerCase()}
                                 </p>
                                 <p className="text-[13px] text-muted-foreground">
-                                    Pour savoir quand c’est plein. Ajustable une
-                                    par une.
+                                    Celles que tu vois en ouvrant la porte,
+                                    piles comprises. Ajustable une par une.
                                 </p>
                             </div>
                             <div className="w-40 shrink-0">
@@ -352,6 +360,30 @@ export function CellarConfigurator({
                                 />
                             </div>
                         </div>
+
+                        {type.maxDepth > 1 && (
+                            <div className="surface flex items-center justify-between gap-4 p-4">
+                                <div className="min-w-0">
+                                    <p className="font-semibold">
+                                        Rangées en profondeur
+                                    </p>
+                                    <p className="text-[13px] text-muted-foreground">
+                                        {depth > 1
+                                            ? `Des bouteilles l’une derrière l’autre : la capacité est multipliée par ${depth}.`
+                                            : 'Une seule rangée : rien n’est caché derrière.'}
+                                    </p>
+                                </div>
+                                <div className="w-40 shrink-0">
+                                    <Stepper
+                                        value={depth}
+                                        onChange={(next) => set('depth', next)}
+                                        min={1}
+                                        max={type.maxDepth}
+                                        label="Rangées en profondeur"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         <div>
                             <p className="mb-2 text-[13px] text-muted-foreground">

@@ -32,11 +32,13 @@ export default function CellarForm({ cellar }: { cellar: Cellar | null }) {
                         : '',
                 humidity:
                     cellar.humidity !== null ? String(cellar.humidity) : '',
+                depth: cellar.depth ?? 1,
                 compartments: cellar.compartments.map((compartment) => ({
                     key: nextKey(),
                     id: compartment.id,
                     name: compartment.name,
                     capacity:
+                        compartment.frontCapacity ??
                         compartment.capacity ??
                         findCellarType(catalog, cellar.type).defaultCapacity,
                     itemsCount: compartment.itemsCount,
@@ -54,6 +56,7 @@ export default function CellarForm({ cellar }: { cellar: Cellar | null }) {
             notes: '',
             temperature: '',
             humidity: '',
+            depth: 1,
             compartments: defaultCompartments(
                 type.compartment,
                 type.defaultCount,

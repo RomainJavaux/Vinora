@@ -92,6 +92,7 @@ export function LocationPicker({
                             (compartment.id === value ? extra : 0),
                         itemsCount: compartment.itemsCount,
                         capacity: compartment.capacity,
+                        frontCapacity: compartment.frontCapacity,
                         previewBottles: compartment.previewBottles,
                     }))}
                     selectedId={selected?.id ?? null}

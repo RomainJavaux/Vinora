@@ -52,6 +52,7 @@ export default function Onboarding({
             notes: '',
             temperature: '',
             humidity: '',
+            depth: 1,
             compartments: defaultCompartments(
                 type.compartment,
                 type.defaultCount,

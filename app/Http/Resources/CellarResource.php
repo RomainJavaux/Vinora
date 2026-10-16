@@ -26,7 +26,7 @@ class CellarResource extends JsonResource
         $cellar = $this->resource;
 
         $compartments = $cellar->relationLoaded('compartments')
-            ? $cellar->compartments->map(fn (Compartment $compartment) => $this->compartment($compartment, $request))->values()->all()
+            ? $cellar->compartments->map(fn (Compartment $compartment) => $this->compartment($compartment, $request, max(1, $cellar->depth)))->values()->all()
             : [];
 
         return [
@@ -38,6 +38,7 @@ class CellarResource extends JsonResource
             'notes' => $cellar->notes,
             'temperature' => $cellar->temperature,
             'humidity' => $cellar->humidity,
+            'depth' => max(1, $cellar->depth),
             'position' => $cellar->position,
             'compartments' => $compartments,
             'stats' => [
@@ -52,8 +53,13 @@ class CellarResource extends JsonResource
     /**
      * @return array<string, mixed>
      */
-    private function compartment(Compartment $compartment, Request $request): array
+    private function compartment(Compartment $compartment, Request $request, int $depth): array
     {
+        // "capacity" counts every place (front x depth), "frontCapacity" the
+        // bottles seen from the front, the ones drawn on the illustration.
+        $front = $compartment->capacity;
+        $capacity = $front !== null ? $front * $depth : null;
+
         $loaded = $compartment->relationLoaded('wines');
 
         if ($loaded) {
@@ -69,7 +75,8 @@ class CellarResource extends JsonResource
                 'id' => $compartment->id,
                 'name' => $compartment->name,
                 'color' => $compartment->color,
-                'capacity' => $compartment->capacity,
+                'capacity' => $capacity,
+                'frontCapacity' => $front,
                 'position' => $compartment->position,
                 'itemsCount' => $wines->count(),
                 'units' => (int) $wines->sum('quantity'),
@@ -83,7 +90,8 @@ class CellarResource extends JsonResource
             'id' => $compartment->id,
             'name' => $compartment->name,
             'color' => $compartment->color,
-            'capacity' => $compartment->capacity,
+            'capacity' => $capacity,
+            'frontCapacity' => $front,
             'position' => $compartment->position,
             'itemsCount' => (int) ($compartment->getAttribute('wines_count') ?? 0),
             'units' => (int) ($compartment->getAttribute('wines_sum_quantity') ?? 0),

@@ -64,6 +64,47 @@ class CellarTest extends TestCase
         $this->assertSame($second->id, $wine->refresh()->compartment_id);
     }
 
+    public function test_rows_in_depth_multiply_the_capacity(): void
+    {
+        [$user, , $cellar] = $this->userWithCellar();
+
+        $this->actingAs($user)->put(route('cellars.update', $cellar), [
+            'name' => 'Cave du salon',
+            'type' => 'cabinet',
+            'color' => 'bordeaux',
+            'depth' => 2,
+            'compartments' => $cellar->compartments->map(fn ($compartment) => [
+                'id' => $compartment->id,
+                'name' => $compartment->name,
+                'capacity' => 20,
+            ])->all(),
+        ])->assertRedirect();
+
+        $this->assertSame(2, $cellar->refresh()->depth);
+
+        $this->actingAs($user)
+            ->get(route('cellars.show', $cellar))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('cellar.depth', 2)
+                ->where('cellar.compartments.0.frontCapacity', 20)
+                ->where('cellar.compartments.0.capacity', 40)
+                ->where('cellar.stats.capacity', 120),
+            );
+    }
+
+    public function test_a_vault_has_no_depth(): void
+    {
+        [$user] = $this->userWithCellar();
+
+        $this->actingAs($user)->post(route('cellars.store'), [
+            'name' => 'Cave voûtée',
+            'type' => 'vault',
+            'color' => 'oak',
+            'depth' => 3,
+            'compartments' => [['name' => 'Casier 1']],
+        ])->assertSessionHasErrors('depth');
+    }
+
     public function test_the_number_of_compartments_is_limited_by_the_type(): void
     {
         [$user] = $this->userWithCellar();
