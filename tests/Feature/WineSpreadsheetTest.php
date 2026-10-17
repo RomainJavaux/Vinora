@@ -268,6 +268,24 @@ class WineSpreadsheetTest extends TestCase
         $this->assertSame($this->compartment($cellar)->id, $wine->compartment_id);
     }
 
+    public function test_formats_are_recognised_by_name_or_volume(): void
+    {
+        [$user] = $this->userWithCellar();
+        $csv = "Nom;Format\nChianti;1 l\nLambrusco;100cl\nVin de table;Litre\nPinot;Magnum\nVin jaune;62 cl\nSauternes;37,5 cl\n";
+
+        $token = $this->preview($user, UploadedFile::fake()->createWithContent('formats.csv', $csv));
+        $this->actingAs($user)->post(route('wines.confirm', $token));
+
+        $this->assertSame([
+            'Chianti' => BottleFormat::Liter,
+            'Lambrusco' => BottleFormat::Liter,
+            'Vin de table' => BottleFormat::Liter,
+            'Pinot' => BottleFormat::Magnum,
+            'Vin jaune' => BottleFormat::Clavelin,
+            'Sauternes' => BottleFormat::Half,
+        ], Wine::query()->orderBy('id')->get()->mapWithKeys(fn (Wine $wine) => [$wine->name => $wine->format])->all());
+    }
+
     public function test_a_file_without_a_name_column_is_refused(): void
     {
         [$user] = $this->userWithCellar();

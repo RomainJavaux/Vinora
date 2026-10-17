@@ -23,6 +23,7 @@ export type FormatValue =
     | 'medium'
     | 'clavelin'
     | 'standard'
+    | 'liter'
     | 'magnum'
     | 'jeroboam';
 
