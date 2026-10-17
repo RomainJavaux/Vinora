@@ -377,5 +377,5 @@ function QuickActions({
 }
 
 export function isFocusedPage(component: string): boolean {
-    return component === 'wines/form' || component === 'cellars/form';
+    return ['wines/form', 'wines/import', 'cellars/form'].includes(component);
 }

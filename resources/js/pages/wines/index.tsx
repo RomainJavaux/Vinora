@@ -1,10 +1,25 @@
 import { Head, Link } from '@inertiajs/react';
-import { Plus, RotateCcw, Search, X } from 'lucide-react';
+import {
+    ChevronDown,
+    Download,
+    FileSpreadsheet,
+    Plus,
+    RotateCcw,
+    Search,
+    Upload,
+    X,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useDeferredValue, useEffect, useRef, useState } from 'react';
 import { EmptyState, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Segmented } from '@/components/ui/segmented';
 import { DrinkSheet } from '@/components/wines/drink-sheet';
 import { WineRow } from '@/components/wines/wine-row';
@@ -145,16 +160,54 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
                 overline="Tout ce qui est en cave"
                 title="Bouteilles"
                 actions={
-                    <Button
-                        asChild
-                        variant="warm"
-                        className="hidden lg:inline-flex"
-                    >
-                        <Link href={wines.create()}>
-                            <Plus />
-                            Ranger une bouteille
-                        </Link>
-                    </Button>
+                    <>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className="h-9 rounded-xl px-3.5 text-sm lg:h-11 lg:rounded-2xl lg:px-5 lg:text-[15px]"
+                                >
+                                    <FileSpreadsheet />
+                                    Excel
+                                    <ChevronDown className="-mr-1 size-4 opacity-60" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-64">
+                                <DropdownMenuItem asChild>
+                                    <a href={wines.export.url()} download>
+                                        <Download />
+                                        <span>
+                                            Exporter en Excel
+                                            <span className="block text-[12px] font-normal text-muted-foreground">
+                                                Tous les vins, avec l’historique
+                                            </span>
+                                        </span>
+                                    </a>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                    <Link href={wines.import()}>
+                                        <Upload />
+                                        <span>
+                                            Importer un fichier
+                                            <span className="block text-[12px] font-normal text-muted-foreground">
+                                                Ajouter ou modifier des vins
+                                            </span>
+                                        </span>
+                                    </Link>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button
+                            asChild
+                            variant="warm"
+                            className="hidden lg:inline-flex"
+                        >
+                            <Link href={wines.create()}>
+                                <Plus />
+                                Ranger une bouteille
+                            </Link>
+                        </Button>
+                    </>
                 }
             />
 
@@ -320,11 +373,19 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
                     title="Ta cave est vide"
                     description="Range ta première bouteille : photo de l’étiquette, millésime, et on s’occupe de te dire quand l’ouvrir."
                     action={
-                        <Button asChild variant="warm">
-                            <Link href={wines.create()}>
-                                Ranger une bouteille
-                            </Link>
-                        </Button>
+                        <div className="flex flex-col items-center gap-2 sm:flex-row">
+                            <Button asChild variant="warm">
+                                <Link href={wines.create()}>
+                                    Ranger une bouteille
+                                </Link>
+                            </Button>
+                            <Button asChild variant="ghost">
+                                <Link href={wines.import()}>
+                                    <FileSpreadsheet />
+                                    Importer un fichier Excel
+                                </Link>
+                            </Button>
+                        </div>
                     }
                 />
             ) : tab === 'finished' && finished.length === 0 ? (
