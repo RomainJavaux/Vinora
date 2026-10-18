@@ -1,5 +1,13 @@
-import { Head, Link, useForm } from '@inertiajs/react';
-import { Camera, Check, ImagePlus, Sparkles, Trash2, X } from 'lucide-react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import {
+    Camera,
+    Check,
+    ImagePlus,
+    ScanText,
+    Sparkles,
+    Trash2,
+    X,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
@@ -10,6 +18,13 @@ import { Chip } from '@/components/ui/chip';
 import { Input, Textarea } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Stepper } from '@/components/ui/stepper';
+import {
+    LabelReadBanner,
+    LabelReaderTip,
+    LabelScanOverlay,
+    useLabelReader,
+} from '@/components/wines/label-reading';
+import type { LabelFields } from '@/components/wines/label-reading';
 import { LocationPicker } from '@/components/wines/location-picker';
 import { SplitPlaces } from '@/components/wines/split-places';
 import type { Placement } from '@/components/wines/split-places';
@@ -135,6 +150,92 @@ export default function WineForm({
         (sum, placement) => sum + placement.quantity,
         0,
     );
+    // « Lire l’étiquette », only for users who saved their own key.
+    const canReadLabels = usePage().props.auth.user?.canReadLabels ?? false;
+    const [labelRead, setLabelRead] = useState<{
+        filled: string[];
+        grapesInferred: boolean;
+        previous: Partial<FormData>;
+    } | null>(null);
+
+    const applyLabel = (fields: LabelFields) => {
+        const patch: Partial<FormData> = {};
+        const filled: string[] = [];
+        const set = <K extends keyof FormData>(
+            key: K,
+            value: FormData[K] | null,
+            label: string,
+        ) => {
+            if (value !== null && value !== '') {
+                patch[key] = value;
+                filled.push(label);
+            }
+        };
+
+        set('name', fields.name, 'Nom');
+        set('producer', fields.producer, 'Domaine');
+        set('vintage', fields.vintage, 'Millésime');
+        set('category', fields.category, 'Couleur');
+        set('appellation', fields.appellation, 'Appellation');
+        set('region', fields.region, 'Région');
+        set('country', fields.country, 'Pays');
+        set(
+            'grapes',
+            fields.grapes.length > 0 ? fields.grapes : null,
+            'Cépages',
+        );
+        set(
+            'alcohol',
+            fields.alcohol !== null
+                ? String(fields.alcohol).replace('.', ',')
+                : null,
+            'Degré',
+        );
+        set('format', fields.format, 'Format');
+        set('aging', fields.aging, 'Garde');
+
+        const previous = Object.fromEntries(
+            Object.keys(patch).map((key) => [key, data[key as keyof FormData]]),
+        ) as Partial<FormData>;
+
+        setData((current) => ({ ...current, ...patch }));
+        setLabelRead({
+            filled,
+            grapesInferred: fields.grapesInferred && patch.grapes !== undefined,
+            previous,
+        });
+
+        if (fields.vintage === null && fields.name !== null) {
+            setHint('Millésime non lu sur l’étiquette : indique-le.');
+        }
+    };
+
+    const labelReader = useLabelReader(applyLabel);
+
+    const undoLabel = () => {
+        if (labelRead) {
+            setData((current) => ({ ...current, ...labelRead.previous }));
+        }
+
+        setLabelRead(null);
+    };
+
+    // Reads the new photo, or the current one (fetched back as a file).
+    const readLabel = async (file?: File) => {
+        let photo = file ?? data.photo;
+
+        if (!photo && preview) {
+            const blob = await fetch(preview).then((response) =>
+                response.blob(),
+            );
+            photo = new File([blob], 'etiquette', { type: blob.type });
+        }
+
+        if (photo) {
+            setLabelRead(null);
+            void labelReader.read(photo);
+        }
+    };
 
     const category = findCategory(catalog, data.category);
     const aging = data.aging ?? category.aging;
@@ -224,6 +325,11 @@ export default function WineForm({
                 remove_photo: false,
             }));
             setPreview(URL.createObjectURL(compressed));
+
+            // A new bottle starts with its label: read it straight away.
+            if (canReadLabels && !editing) {
+                void readLabel(compressed);
+            }
         } finally {
             setCompressing(false);
         }
@@ -232,6 +338,7 @@ export default function WineForm({
     const removePhoto = () => {
         setData((current) => ({ ...current, photo: null, remove_photo: true }));
         setPreview(null);
+        labelReader.clearError();
     };
 
     const submit = () => {
@@ -347,6 +454,18 @@ export default function WineForm({
                                         className="absolute inset-0 size-full object-cover"
                                     />
                                     <div className="absolute inset-x-0 bottom-0 flex justify-end gap-2 bg-gradient-to-t from-black/60 to-transparent p-3 pt-10">
+                                        {canReadLabels && (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                className="mr-auto"
+                                                onClick={() => void readLabel()}
+                                                disabled={labelReader.reading}
+                                            >
+                                                <ScanText />
+                                                Lire l’étiquette
+                                            </Button>
+                                        )}
                                         <PhotoButton
                                             onPick={pickPhoto}
                                             variant="glass"
@@ -390,13 +509,28 @@ export default function WineForm({
                                     <Spinner className="size-8" />
                                 </div>
                             )}
+                            <LabelScanOverlay active={labelReader.reading} />
                         </div>
                         <InputError
-                            message={errors.photo}
+                            message={
+                                errors.photo ?? labelReader.error ?? undefined
+                            }
                             className="px-5 pt-3"
                         />
 
                         <div className="space-y-3 p-5">
+                            <AnimatePresence>
+                                {labelRead && (
+                                    <LabelReadBanner
+                                        filled={labelRead.filled}
+                                        grapesInferred={
+                                            labelRead.grapesInferred
+                                        }
+                                        onUndo={undoLabel}
+                                    />
+                                )}
+                            </AnimatePresence>
+                            {!canReadLabels && !editing && <LabelReaderTip />}
                             <Input
                                 value={data.name}
                                 onChange={(event) =>

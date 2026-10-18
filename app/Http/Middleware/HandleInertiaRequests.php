@@ -53,6 +53,7 @@ class HandleInertiaRequests extends Middleware
                     'email_verified_at' => $user->email_verified_at?->toIso8601String(),
                     'created_at' => $user->created_at?->toIso8601String(),
                     'updated_at' => $user->updated_at?->toIso8601String(),
+                    'canReadLabels' => $user->canReadLabels(),
                 ] : null,
             ],
             // Evaluated after the controllers, which may switch the household.

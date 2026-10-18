@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\LabelReaderController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Auth\Middleware\RequirePassword;
@@ -24,6 +25,12 @@ Route::middleware(['auth'])->group(function () {
         ->name('user-password.update');
 
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
+
+    Route::get('settings/label-reader', [LabelReaderController::class, 'edit'])->name('label-reader.edit');
+    Route::put('settings/label-reader', [LabelReaderController::class, 'update'])
+        ->middleware('throttle:6,1')
+        ->name('label-reader.update');
+    Route::delete('settings/label-reader', [LabelReaderController::class, 'destroy'])->name('label-reader.destroy');
 });
 
 Route::get('.well-known/passkey-endpoints', function () {

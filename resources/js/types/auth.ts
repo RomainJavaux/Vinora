@@ -5,6 +5,8 @@ export type User = {
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;
+    /** The user has saved their own Anthropic key. */
+    canReadLabels: boolean;
 };
 
 export type Auth = {

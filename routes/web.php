@@ -10,6 +10,7 @@ use App\Http\Controllers\MemberController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\TastingController;
 use App\Http\Controllers\WineController;
+use App\Http\Controllers\WineLabelController;
 use App\Http\Controllers\WineSpreadsheetController;
 use App\Http\Controllers\WineStockController;
 use Illuminate\Support\Facades\Route;
@@ -32,6 +33,9 @@ Route::middleware('auth')->group(function () {
 
         Route::resource('cellars', CellarController::class);
 
+        Route::post('wines/read-label', WineLabelController::class)
+            ->middleware('throttle:label-reading')
+            ->name('wines.read-label');
         Route::get('wines/export', [WineSpreadsheetController::class, 'export'])->name('wines.export');
         Route::get('wines/import', [WineSpreadsheetController::class, 'create'])->name('wines.import');
         Route::post('wines/import', [WineSpreadsheetController::class, 'store'])->name('wines.preview');

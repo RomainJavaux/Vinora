@@ -1,10 +1,12 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Fingerprint, Palette, UserRound } from 'lucide-react';
+import { Fingerprint, Palette, ScanText, UserRound } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { PropsWithChildren } from 'react';
+import { useEffect, useRef } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { cn } from '@/lib/utils';
 import { edit as editAppearance } from '@/routes/appearance';
+import { edit as editLabelReader } from '@/routes/label-reader';
 import { edit as editProfile } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
 
@@ -12,11 +14,30 @@ const items = [
     { title: 'Profil', href: editProfile.url(), icon: UserRound },
     { title: 'Sécurité', href: editSecurity.url(), icon: Fingerprint },
     { title: 'Apparence', href: editAppearance.url(), icon: Palette },
+    {
+        title: 'Lecture d’étiquette',
+        href: editLabelReader.url(),
+        icon: ScanText,
+    },
 ];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
     const { url } = usePage();
     const path = url.split('?')[0];
+    const nav = useRef<HTMLElement>(null);
+
+    // On a phone the tabs scroll sideways: keep the current one in view.
+    useEffect(() => {
+        const list = nav.current;
+        const active = list?.querySelector<HTMLElement>(
+            '[aria-current="page"]',
+        );
+
+        if (list && active) {
+            list.scrollLeft =
+                active.offsetLeft - (list.clientWidth - active.clientWidth) / 2;
+        }
+    }, [path]);
 
     return (
         <div>
@@ -24,6 +45,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
 
             <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
                 <nav
+                    ref={nav}
                     aria-label="Réglages"
                     className="no-scrollbar -mx-4 flex gap-1 overflow-x-auto px-4 lg:mx-0 lg:w-56 lg:shrink-0 lg:flex-col lg:px-0"
                 >
@@ -34,6 +56,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                             <Link
                                 key={item.href}
                                 href={item.href}
+                                aria-current={active ? 'page' : undefined}
                                 className={cn(
                                     'relative flex h-11 shrink-0 items-center gap-2.5 rounded-2xl px-4 text-[15px] font-semibold transition-colors',
                                     active

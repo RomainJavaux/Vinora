@@ -14,6 +14,7 @@ Application web installable (PWA), mobile d’abord, construite sur le même soc
 - **Carnet de dégustation** : note sur 5 et commentaire à chaque bouteille ouverte ; les coups de cœur se rachètent en un geste.
 - **Ranger en 15 secondes** : photo de l’étiquette (compressée dans le navigateur puis réencodée en WebP), suggestions « Déjà dans ta cave » (même cuvée, autre millésime), quantités rapides (carton de 6, caisse de 12), formats (demi, clavelin, magnum, jéroboam…), emplacement choisi sur le dessin.
 - **Valeur de la cave** (prix d’achat, valeur estimée), visible par tous ou seulement par les admins.
+- **Lecture d’étiquette par IA** : une photo et Claude remplit la fiche (nom, domaine, millésime, appellation, couleur, cépages, degré, format, garde) ; on vérifie et on range. Chaque utilisateur utilise sa propre clé Anthropic, chiffrée en base : jamais de clé commune sur le serveur.
 - **Export et import Excel** : toutes les données de chaque vin (un lot par ligne), l’historique complet et des listes déroulantes ; on modifie le fichier, on le redépose, un aperçu montre les ajouts, modifications et erreurs ligne par ligne avant de confirmer.
 - **En famille** : lieux partagés, rôles (propriétaire, admin, membre), invitations par lien, e-mail ou QR code.
 - **Connexion express** (passkeys), « rester connecté » par défaut, mode sombre « nuit de cave », PWA hors ligne.
