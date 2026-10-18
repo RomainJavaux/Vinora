@@ -6,15 +6,18 @@ use Anthropic\Beta\Messages\BetaTextBlock;
 use Anthropic\Client;
 use Anthropic\Core\Exceptions\APIConnectionException;
 use Anthropic\Core\Exceptions\APIException;
+use Anthropic\Core\Exceptions\APIStatusException;
 use Anthropic\Core\Exceptions\AuthenticationException;
 use Anthropic\Core\Exceptions\PermissionDeniedException;
 use Anthropic\Core\Exceptions\RateLimitException;
+use Anthropic\ErrorType;
 use App\Enums\AgingPotential;
 use App\Enums\BottleFormat;
 use App\Enums\WineCategory;
 use App\Exceptions\LabelReadingFailed;
 use App\Http\Requests\WineRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
 use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\Encoders\JpegEncoder;
 use Intervention\Image\ImageManager;
@@ -47,25 +50,38 @@ class LabelReader
         TEXT;
 
     /**
-     * Check that Anthropic accepts the key, with a free call.
+     * Check that the key can really read labels: a tiny request on the same
+     * model (well under a tenth of a cent). It also catches a key outside any
+     * workspace or an account without credit, which listing models does not.
      */
-    public function verify(string $apiKey): void
+    public function verify(#[\SensitiveParameter] string $apiKey): void
     {
         try {
-            $this->client($apiKey)->models->retrieve(self::MODEL);
+            $this->client($apiKey)->messages->create(
+                maxTokens: 64,
+                model: self::MODEL,
+                messages: [['role' => 'user', 'content' => 'Réponds simplement OK.']],
+                outputConfig: ['effort' => 'low'],
+            );
         } catch (AuthenticationException|PermissionDeniedException) {
             throw LabelReadingFailed::invalidKey();
         } catch (APIConnectionException) {
             throw LabelReadingFailed::unreachable();
+        } catch (RateLimitException) {
+            // Busy account: the key itself was accepted.
+        } catch (APIStatusException $exception) {
+            if (($exception->status ?? 0) < 500) {
+                throw new LabelReadingFailed(self::explain($exception), 400);
+            }
         } catch (APIException) {
-            // Any other answer means the key itself was accepted.
+            // Anthropic is having a hiccup: the key itself was accepted.
         }
     }
 
     /**
      * @return LabelFields
      */
-    public function read(string $apiKey, UploadedFile $photo): array
+    public function read(#[\SensitiveParameter] string $apiKey, UploadedFile $photo): array
     {
         $image = $this->jpeg($photo);
 
@@ -96,6 +112,12 @@ class LabelReader
             throw new LabelReadingFailed('Ton compte Anthropic a atteint sa limite. Réessaie dans une minute.', 429);
         } catch (APIConnectionException) {
             throw LabelReadingFailed::unreachable();
+        } catch (APIStatusException $exception) {
+            report($exception);
+
+            throw ($exception->status ?? 0) >= 500
+                ? new LabelReadingFailed('Anthropic est surchargé pour le moment. Réessaie dans un instant.', 503)
+                : new LabelReadingFailed(self::explain($exception), 400);
         } catch (APIException $exception) {
             report($exception);
 
@@ -170,13 +192,35 @@ class LabelReader
      * A client bound to this key only. The empty token stops the SDK from
      * falling back to credentials found on the server.
      */
-    protected function client(string $apiKey): Client
+    protected function client(#[\SensitiveParameter] string $apiKey): Client
     {
         if ($apiKey === '') {
             throw LabelReadingFailed::invalidKey();
         }
 
         return new Client(apiKey: $apiKey, authToken: '', requestOptions: ['timeout' => 60.0, 'maxRetries' => 1]);
+    }
+
+    /**
+     * Why Anthropic turned the request down, in words the user can act on.
+     */
+    private static function explain(APIStatusException $exception): string
+    {
+        $message = data_get($exception->body, 'error.message');
+        $message = is_string($message) ? $message : '';
+        $lower = mb_strtolower($message);
+
+        if ($exception->type === ErrorType::BILLING_ERROR || str_contains($lower, 'credit balance')) {
+            return 'Ton compte Anthropic n’a plus de crédit : ajoutes-en sur console.anthropic.com (Billing), puis réessaie.';
+        }
+
+        if (str_contains($lower, 'workspace')) {
+            return 'Cette clé n’est rattachée à aucun espace de travail Anthropic. Sur console.anthropic.com, crée une clé dans un workspace (« Default » convient) puis colle-la dans Réglages → Lecture d’étiquette.';
+        }
+
+        return $message !== ''
+            ? 'Anthropic refuse la demande : '.Str::limit($message, 240)
+            : 'Anthropic refuse la demande. Vérifie ta clé dans Réglages → Lecture d’étiquette.';
     }
 
     /**

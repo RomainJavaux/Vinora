@@ -43,7 +43,7 @@ class LabelReaderController extends Controller
             $reader->verify($key);
         } catch (LabelReadingFailed $exception) {
             throw ValidationException::withMessages([
-                'key' => $exception->status === 400 ? 'Anthropic refuse cette clé : vérifie-la sur console.anthropic.com.' : $exception->getMessage(),
+                'key' => $exception->badKey ? 'Anthropic refuse cette clé : vérifie-la sur console.anthropic.com.' : $exception->getMessage(),
             ]);
         }
 

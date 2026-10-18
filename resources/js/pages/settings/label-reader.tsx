@@ -121,11 +121,16 @@ export default function LabelReaderSettings({ configured, hint }: Props) {
                                     d’étiquettes).
                                 </Step>
                                 <Step number={2}>
-                                    Dans « API Keys », crée une clé pour Vinora.
+                                    Dans « API Keys », crée une clé{' '}
+                                    <b className="font-semibold text-foreground">
+                                        dans un workspace
+                                    </b>{' '}
+                                    (« Default » convient) et nomme-la Vinora.
                                 </Step>
                                 <Step number={3}>
-                                    Colle-la ici : Vinora vérifie qu’elle
-                                    fonctionne avant de l’enregistrer.
+                                    Colle-la ici : Vinora fait un tout petit
+                                    essai (moins d’un dixième de centime) pour
+                                    vérifier qu’elle peut lire des étiquettes.
                                 </Step>
                             </ol>
                         )}

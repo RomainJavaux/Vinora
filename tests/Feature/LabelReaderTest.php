@@ -2,15 +2,20 @@
 
 namespace Tests\Feature;
 
+use Anthropic\Client;
 use App\Exceptions\LabelReadingFailed;
 use App\Models\User;
 use App\Services\LabelReader;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Mockery;
 use Mockery\MockInterface;
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use Tests\TestCase;
 
 class LabelReaderTest extends TestCase
@@ -215,6 +220,90 @@ class LabelReaderTest extends TestCase
             ->get(route('wines.create'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('auth.user.canReadLabels', false));
+    }
+
+    public function test_a_key_outside_any_workspace_is_refused_with_an_explanation(): void
+    {
+        [$user] = $this->userWithCellar();
+        $transport = $this->anthropicAnswering(400, [
+            'type' => 'error',
+            'error' => [
+                'type' => 'invalid_request_error',
+                'message' => 'This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use. Add the header, or use an API key that is scoped to a workspace.',
+            ],
+        ]);
+        $this->app->instance(LabelReader::class, $this->readerUsing($transport));
+
+        $this->actingAs($user)
+            ->put(route('label-reader.update'), ['key' => self::KEY])
+            ->assertSessionHasErrors(['key' => 'Cette clé n’est rattachée à aucun espace de travail Anthropic. Sur console.anthropic.com, crée une clé dans un workspace (« Default » convient) puis colle-la dans Réglages → Lecture d’étiquette.']);
+
+        $this->assertNull($user->refresh()->anthropic_api_key);
+        $this->assertCount(1, $transport->requests);
+        $this->assertSame('/v1/messages', $transport->requests[0]->getUri()->getPath());
+        $this->assertSame(self::KEY, $transport->requests[0]->getHeaderLine('x-api-key'));
+    }
+
+    public function test_reading_explains_why_anthropic_refused(): void
+    {
+        $reader = $this->readerUsing($this->anthropicAnswering(400, [
+            'type' => 'error',
+            'error' => ['type' => 'invalid_request_error', 'message' => 'Your credit balance is too low to access the Anthropic API.'],
+        ]));
+
+        try {
+            $reader->read(self::KEY, UploadedFile::fake()->image('etiquette.jpg', 600, 800));
+            $this->fail('The reading should have failed.');
+        } catch (LabelReadingFailed $exception) {
+            $this->assertSame(400, $exception->status);
+            $this->assertSame('Ton compte Anthropic n’a plus de crédit : ajoutes-en sur console.anthropic.com (Billing), puis réessaie.', $exception->getMessage());
+        }
+    }
+
+    public function test_a_key_is_accepted_when_anthropic_is_only_overloaded(): void
+    {
+        $transport = $this->anthropicAnswering(529, ['type' => 'error', 'error' => ['type' => 'overloaded_error', 'message' => 'Overloaded']]);
+
+        $this->readerUsing($transport)->verify(self::KEY);
+
+        $this->assertCount(1, $transport->requests);
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     */
+    private function anthropicAnswering(int $status, array $body): ClientInterface
+    {
+        return new class($status, $body) implements ClientInterface
+        {
+            /** @var list<RequestInterface> */
+            public array $requests = [];
+
+            /**
+             * @param  array<string, mixed>  $body
+             */
+            public function __construct(private int $status, private array $body) {}
+
+            public function sendRequest(RequestInterface $request): ResponseInterface
+            {
+                $this->requests[] = $request;
+
+                return new Response($this->status, ['Content-Type' => 'application/json'], (string) json_encode($this->body));
+            }
+        };
+    }
+
+    private function readerUsing(ClientInterface $transport): LabelReader
+    {
+        return new class($transport) extends LabelReader
+        {
+            public function __construct(private ClientInterface $transport) {}
+
+            protected function client(#[\SensitiveParameter] string $apiKey): Client
+            {
+                return new Client(apiKey: $apiKey, authToken: '', requestOptions: ['transporter' => $this->transport, 'maxRetries' => 0]);
+            }
+        };
     }
 
     public function test_the_reader_never_calls_anthropic_without_a_key(): void

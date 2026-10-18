@@ -10,14 +10,14 @@ use RuntimeException;
  */
 class LabelReadingFailed extends RuntimeException
 {
-    public function __construct(string $message, public readonly int $status = 422)
+    public function __construct(string $message, public readonly int $status = 422, public readonly bool $badKey = false)
     {
         parent::__construct($message);
     }
 
     public static function invalidKey(): self
     {
-        return new self('Anthropic refuse ta clé. Vérifie-la dans Réglages → Lecture d’étiquette.', 400);
+        return new self('Anthropic refuse ta clé. Vérifie-la dans Réglages → Lecture d’étiquette.', 400, badKey: true);
     }
 
     public static function unreachable(): self
