@@ -42,8 +42,14 @@ export type ConfiguratorValue = {
 export const DEFAULT_CELLAR_NAMES: Record<CellarTypeValue, string> = {
     cabinet: 'Cave du salon',
     service: 'Cave de service',
+    builtin: 'Cave de la cuisine',
     rack: 'Casier du cellier',
+    wall: 'Mur à vin',
     vault: 'Cave voûtée',
+    cases: 'Caisses du garage',
+    cupboard: 'Placard de la cuisine',
+    fridge: 'Frigo',
+    offsite: 'Chez le caviste',
 };
 
 let keySeed = 0;
@@ -257,13 +263,7 @@ export function CellarConfigurator({
                             onChange={(event) =>
                                 set('name', event.target.value)
                             }
-                            placeholder={
-                                value.type === 'vault'
-                                    ? 'Cave voûtée'
-                                    : value.type === 'rack'
-                                      ? 'Casier du cellier'
-                                      : 'Cave du salon'
-                            }
+                            placeholder={DEFAULT_CELLAR_NAMES[value.type]}
                             className="h-14 font-display text-xl font-bold"
                             maxLength={60}
                             aria-label="Nom de la cave"

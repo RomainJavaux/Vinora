@@ -44,8 +44,14 @@ type Props = {
 const WIDTHS: Record<CellarTypeValue, Record<VisualSize, number>> = {
     cabinet: { xs: 46, sm: 132, md: 210, lg: 330 },
     service: { xs: 54, sm: 150, md: 230, lg: 340 },
+    builtin: { xs: 60, sm: 160, md: 250, lg: 360 },
     rack: { xs: 56, sm: 150, md: 230, lg: 360 },
+    wall: { xs: 56, sm: 160, md: 250, lg: 380 },
     vault: { xs: 82, sm: 210, md: 320, lg: 460 },
+    cases: { xs: 72, sm: 190, md: 290, lg: 420 },
+    cupboard: { xs: 54, sm: 150, md: 230, lg: 340 },
+    fridge: { xs: 46, sm: 132, md: 200, lg: 300 },
+    offsite: { xs: 78, sm: 200, md: 300, lg: 440 },
 };
 
 export function visualWidth(type: CellarTypeValue, size: VisualSize): number {
@@ -121,13 +127,7 @@ export function CellarVisual({
             className={cn('relative mx-auto select-none', className)}
             style={style}
         >
-            {type === 'vault' ? (
-                <Vault {...shared} />
-            ) : type === 'rack' ? (
-                <Rack {...shared} />
-            ) : (
-                <Cabinet {...shared} service={type === 'service'} />
-            )}
+            <Container type={type} {...shared} />
         </div>
     );
 }
@@ -147,11 +147,39 @@ type PartProps = {
     temperature: number | null;
 };
 
+function Container({ type, ...props }: PartProps & { type: CellarTypeValue }) {
+    switch (type) {
+        case 'vault':
+            return <Vault {...props} />;
+        case 'rack':
+            return <Rack {...props} />;
+        case 'wall':
+            return <DisplayWall {...props} />;
+        case 'cases':
+            return <Crates {...props} />;
+        case 'cupboard':
+            return <Cupboard {...props} />;
+        case 'fridge':
+            return <Fridge {...props} />;
+        case 'offsite':
+            return <Offsite {...props} />;
+        case 'service':
+        case 'builtin':
+        case 'cabinet':
+            return <Cabinet {...props} variant={type} />;
+    }
+}
+
 /* ------------------------------------------------------------------ */
-/* Armoire de garde et cave de service                                 */
+/* Armoire de garde, cave de service et cave encastrable               */
 /* ------------------------------------------------------------------ */
 
-function Cabinet({ service, ...props }: PartProps & { service: boolean }) {
+function Cabinet({
+    variant,
+    ...props
+}: PartProps & { variant: 'cabinet' | 'service' | 'builtin' }) {
+    const service = variant === 'service';
+    const builtin = variant === 'builtin';
     const {
         size,
         tint,
@@ -167,17 +195,18 @@ function Cabinet({ service, ...props }: PartProps & { service: boolean }) {
     const h = shelfHeight(size, compartments.length);
     const pad = tiny ? 3 : size === 'sm' ? 6 : 10;
     const inner = tiny ? 2 : size === 'sm' ? 4 : 7;
-    const innerWidth =
-        WIDTHS[service ? 'service' : 'cabinet'][size] - 2 * (pad + inner) - 4;
+    const innerWidth = WIDTHS[variant][size] - 2 * (pad + inner) - 4;
 
     return (
         <div className="relative">
+            {builtin && <Countertop size={size} />}
             <div
                 className="relative overflow-hidden border border-hairline"
                 style={{
-                    borderRadius: radius,
-                    background:
-                        'linear-gradient(160deg, var(--cellar-body-from), var(--cellar-body-to))',
+                    borderRadius: builtin ? radius / 3 : radius,
+                    background: builtin
+                        ? 'linear-gradient(160deg, #eef0f2, #c2c8ce 55%, #a9b0b8)'
+                        : 'linear-gradient(160deg, var(--cellar-body-from), var(--cellar-body-to))',
                     boxShadow: tiny
                         ? '0 2px 6px rgb(40 10 15 / 0.15)'
                         : '0 30px 50px -28px rgb(60 15 25 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.7)',
@@ -293,10 +322,45 @@ function Cabinet({ service, ...props }: PartProps & { service: boolean }) {
                         }}
                     />
                 )}
+
+                {/* Grille d'aération du socle */}
+                {builtin && (
+                    <div
+                        className="mx-auto rounded-sm"
+                        style={{
+                            marginTop: tiny ? 2 : size === 'sm' ? 4 : 7,
+                            height: tiny ? 2 : size === 'sm' ? 5 : 8,
+                            width: '86%',
+                            background:
+                                'repeating-linear-gradient(90deg, rgb(40 44 50 / 0.55) 0 2px, transparent 2px 5px)',
+                        }}
+                    />
+                )}
             </div>
 
-            {!tiny && <Feet />}
+            {!tiny && !builtin && <Feet />}
         </div>
+    );
+}
+
+/** Kitchen worktop over a built-in cellar. */
+function Countertop({ size }: { size: VisualSize }) {
+    const tiny = size === 'xs';
+
+    return (
+        <div
+            className="relative"
+            style={{
+                height: tiny ? 3 : size === 'sm' ? 7 : size === 'md' ? 10 : 13,
+                margin: tiny ? '0 -3px 1px' : '0 -8px 3px',
+                borderRadius: tiny ? 1 : 4,
+                background:
+                    'linear-gradient(180deg, var(--counter-from), var(--counter-to))',
+                boxShadow:
+                    '0 3px 6px -2px rgb(0 0 0 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.5)',
+            }}
+            aria-hidden
+        />
     );
 }
 
@@ -388,10 +452,13 @@ function CountLabel({
     compartment,
     slots,
     compact,
+    light = false,
 }: {
     compartment: VisualCompartment;
     slots: number | null;
     compact?: boolean;
+    /** Written on a light background (inside a fridge). */
+    light?: boolean;
 }) {
     const units = compartment.units ?? 0;
 
@@ -409,7 +476,7 @@ function CountLabel({
                 </>
             )}
             {!compact && (compartment.urgentCount ?? 0) > 0 && (
-                <span className="text-amber-200">
+                <span className={light ? 'text-amber-700' : 'text-amber-200'}>
                     {' '}
                     · {compartment.urgentCount} à boire
                 </span>
@@ -792,6 +859,924 @@ function Bin({
                     {units}
                 </span>
             )}
+        </div>
+    );
+}
+
+/* ------------------------------------------------------------------ */
+/* Mur à vin                                                           */
+/* ------------------------------------------------------------------ */
+
+function DisplayWall(props: PartProps) {
+    const { size, compartments, name, tint } = props;
+    const tiny = size === 'xs';
+    const pad = tiny ? 3 : size === 'sm' ? 6 : 10;
+    const label = size === 'md' || size === 'lg';
+    const available =
+        (WIDTHS.wall[size] - pad * 2 - (tiny ? 3 : 14)) * (label ? 0.62 : 1);
+
+    return (
+        <div
+            className="relative overflow-hidden"
+            style={{
+                borderRadius: tiny ? 4 : size === 'sm' ? 10 : 16,
+                padding: pad,
+                background: 'linear-gradient(180deg, #36343b, #1c1b20)',
+                border: '1px solid rgb(255 255 255 / 0.12)',
+                boxShadow: tiny
+                    ? '0 2px 6px rgb(20 10 15 / 0.25)'
+                    : '0 28px 44px -26px rgb(20 10 20 / 0.7), inset 0 1px 0 rgb(255 255 255 / 0.15)',
+            }}
+        >
+            {/* Rampe LED */}
+            <div
+                className="mx-auto rounded-full"
+                style={{
+                    height: tiny ? 1.5 : size === 'sm' ? 3 : 4,
+                    width: '82%',
+                    background: 'rgb(255 228 176)',
+                    boxShadow: '0 0 12px 3px rgb(255 214 150 / 0.55)',
+                    marginBottom: tiny ? 3 : size === 'sm' ? 7 : 10,
+                }}
+                aria-hidden
+            />
+            {label && name && <NamePlate name={name} tint={tint} />}
+            <div
+                className="relative flex flex-col"
+                style={{
+                    gap: tiny ? 2 : size === 'sm' ? 4 : 7,
+                    backgroundImage:
+                        'radial-gradient(90% 40% at 50% 0%, rgb(255 214 150 / 0.14), transparent 70%)',
+                }}
+            >
+                <AnimatePresence initial={false}>
+                    {compartments.map((compartment, index) => (
+                        <Compartment
+                            key={compartment.id}
+                            {...props}
+                            compartment={compartment}
+                            index={index}
+                        >
+                            <StandingRow
+                                {...props}
+                                compartment={compartment}
+                                index={index}
+                                bottle={standWidth(size, compartments.length)}
+                                available={available}
+                                ledge="metal"
+                                label={label}
+                            />
+                        </Compartment>
+                    ))}
+                </AnimatePresence>
+            </div>
+        </div>
+    );
+}
+
+/* ------------------------------------------------------------------ */
+/* Placard ou étagère                                                  */
+/* ------------------------------------------------------------------ */
+
+function Cupboard(props: PartProps) {
+    const { size, compartments, name, tint } = props;
+    const tiny = size === 'xs';
+    const door = tiny ? 4 : size === 'sm' ? 10 : 16;
+    const pad = tiny ? 3 : size === 'sm' ? 5 : 9;
+    const label = size === 'md' || size === 'lg';
+    const available =
+        (WIDTHS.cupboard[size] - door * 2 - pad * 2 - (tiny ? 3 : 16)) *
+        (label ? 0.62 : 1);
+
+    return (
+        <div className="relative" style={{ paddingInline: door }}>
+            {/* Portes ouvertes */}
+            {[0, 1].map((side) => (
+                <span
+                    key={side}
+                    className="wood-texture absolute top-[3%] bottom-[9%]"
+                    style={{
+                        [side === 0 ? 'left' : 'right']: 0,
+                        width: door,
+                        borderRadius:
+                            side === 0 ? '5px 2px 2px 5px' : '2px 5px 5px 2px',
+                        transform: `perspective(240px) rotateY(${side === 0 ? 40 : -40}deg)`,
+                        transformOrigin:
+                            side === 0 ? 'right center' : 'left center',
+                        boxShadow: 'inset 0 0 0 2px rgb(0 0 0 / 0.14)',
+                        filter: 'brightness(0.9)',
+                    }}
+                    aria-hidden
+                >
+                    {!tiny && (
+                        <span
+                            className="absolute top-1/2 size-1.5 -translate-y-1/2 rounded-full"
+                            style={{
+                                [side === 0 ? 'left' : 'right']: '28%',
+                                background: tint,
+                            }}
+                        />
+                    )}
+                </span>
+            ))}
+
+            <div
+                className="wood-texture relative overflow-hidden"
+                style={{
+                    borderRadius: tiny ? 3 : size === 'sm' ? 8 : 12,
+                    padding: pad,
+                    boxShadow: tiny
+                        ? '0 2px 6px rgb(40 10 15 / 0.2)'
+                        : '0 28px 44px -26px rgb(60 25 10 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.3)',
+                }}
+            >
+                {label && name && <NamePlate name={name} tint={tint} />}
+                <div
+                    className="relative overflow-hidden"
+                    style={{
+                        borderRadius: tiny ? 2 : size === 'sm' ? 5 : 8,
+                        padding: tiny ? 1.5 : size === 'sm' ? 4 : 7,
+                        background:
+                            'linear-gradient(180deg, rgb(72 44 26 / 0.96), rgb(38 22 13 / 0.97))',
+                        boxShadow: 'inset 0 5px 14px rgb(0 0 0 / 0.55)',
+                    }}
+                >
+                    <div
+                        className="flex flex-col"
+                        style={{ gap: tiny ? 2 : size === 'sm' ? 4 : 7 }}
+                    >
+                        <AnimatePresence initial={false}>
+                            {compartments.map((compartment, index) => (
+                                <Compartment
+                                    key={compartment.id}
+                                    {...props}
+                                    compartment={compartment}
+                                    index={index}
+                                >
+                                    <StandingRow
+                                        {...props}
+                                        compartment={compartment}
+                                        index={index}
+                                        bottle={standWidth(
+                                            size,
+                                            compartments.length,
+                                        )}
+                                        available={available}
+                                        ledge="wood"
+                                        label={label}
+                                    />
+                                </Compartment>
+                            ))}
+                        </AnimatePresence>
+                    </div>
+                </div>
+            </div>
+            {!tiny && <Feet />}
+        </div>
+    );
+}
+
+/* ------------------------------------------------------------------ */
+/* Réfrigérateur                                                       */
+/* ------------------------------------------------------------------ */
+
+function Fridge(props: PartProps) {
+    const { size, compartments, name, tint, temperature } = props;
+    const tiny = size === 'xs';
+    const pad = tiny ? 2.5 : size === 'sm' ? 5 : 8;
+    const label = size === 'md' || size === 'lg';
+    const available =
+        (WIDTHS.fridge[size] - pad * 2 - (tiny ? 4 : 18)) * (label ? 0.6 : 1);
+
+    return (
+        <div className="relative">
+            <div
+                className="relative overflow-hidden border border-hairline"
+                style={{
+                    borderRadius: tiny ? 6 : size === 'sm' ? 14 : 22,
+                    padding: pad,
+                    background:
+                        'linear-gradient(160deg, var(--cellar-body-from), var(--cellar-body-to))',
+                    boxShadow: tiny
+                        ? '0 2px 6px rgb(40 10 15 / 0.15)'
+                        : '0 30px 50px -28px rgb(60 15 25 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.7)',
+                }}
+            >
+                {/* Freezer */}
+                <div
+                    className="relative flex items-center justify-between gap-2"
+                    style={{
+                        height: tiny
+                            ? 9
+                            : size === 'sm'
+                              ? 24
+                              : size === 'md'
+                                ? 34
+                                : 44,
+                        borderRadius: tiny ? 3 : size === 'sm' ? 8 : 12,
+                        background:
+                            'linear-gradient(160deg, rgb(255 255 255 / 0.35), rgb(0 0 0 / 0.06))',
+                        boxShadow: 'inset 0 0 0 1px rgb(0 0 0 / 0.08)',
+                        padding: tiny ? 0 : size === 'sm' ? '0 8px' : '0 12px',
+                        marginBottom: tiny ? 2 : size === 'sm' ? 5 : 8,
+                    }}
+                >
+                    {!tiny && (
+                        <span
+                            className="shrink-0 rounded-full"
+                            style={{
+                                width: size === 'sm' ? 22 : 38,
+                                height: size === 'sm' ? 3 : 5,
+                                background: tint,
+                            }}
+                            aria-hidden
+                        />
+                    )}
+                    {label && name && (
+                        <span className="min-w-0 truncate font-display text-[13px] font-bold text-foreground/75">
+                            {name}
+                        </span>
+                    )}
+                    {label && temperature !== null && (
+                        <Lcd text={`${Math.round(temperature)}°`} />
+                    )}
+                </div>
+
+                {/* Intérieur éclairé */}
+                <div
+                    className="relative overflow-hidden"
+                    style={{
+                        borderRadius: tiny ? 3 : size === 'sm' ? 8 : 14,
+                        padding: tiny ? 1.5 : size === 'sm' ? 5 : 8,
+                        background: 'linear-gradient(180deg, #f8fbff, #dbe5ee)',
+                        boxShadow: 'inset 0 4px 12px rgb(30 50 70 / 0.18)',
+                    }}
+                >
+                    <div
+                        className="flex flex-col"
+                        style={{ gap: tiny ? 2 : size === 'sm' ? 5 : 9 }}
+                    >
+                        <AnimatePresence initial={false}>
+                            {compartments.map((compartment, index) => (
+                                <Compartment
+                                    key={compartment.id}
+                                    {...props}
+                                    compartment={compartment}
+                                    index={index}
+                                >
+                                    <StandingRow
+                                        {...props}
+                                        compartment={compartment}
+                                        index={index}
+                                        bottle={standWidth(
+                                            size,
+                                            compartments.length + 2,
+                                        )}
+                                        available={available}
+                                        ledge="door"
+                                        label={label}
+                                    />
+                                </Compartment>
+                            ))}
+                        </AnimatePresence>
+                    </div>
+                </div>
+            </div>
+            {!tiny && <Feet />}
+        </div>
+    );
+}
+
+/* ------------------------------------------------------------------ */
+/* Rangée de bouteilles debout (mur à vin, placard, balconnet)         */
+/* ------------------------------------------------------------------ */
+
+function StandingRow({
+    compartment,
+    index,
+    size,
+    catalog,
+    tint,
+    animateOpening,
+    bottle,
+    available,
+    ledge,
+    label,
+}: PartProps & {
+    compartment: VisualCompartment;
+    index: number;
+    bottle: number;
+    available: number;
+    ledge: 'metal' | 'wood' | 'door';
+    label: boolean;
+}) {
+    const tiny = size === 'xs';
+    const units = compartment.units ?? compartment.previewBottles?.length ?? 0;
+    const front =
+        compartment.frontCapacity ?? compartment.capacity ?? Math.max(units, 6);
+    const total = compartment.capacity ?? front;
+    const door = ledge === 'door';
+    const strip = tiny ? 1.5 : size === 'sm' ? 3 : 5;
+
+    return (
+        <div className="relative" style={{ paddingBottom: door ? 2 : 0 }}>
+            <div className="relative flex items-end gap-1.5">
+                <span
+                    className="absolute top-1 bottom-0 left-0 z-[2] rounded-full"
+                    style={{ width: tiny ? 1.5 : 3, background: tint }}
+                />
+                <div
+                    className="relative min-w-0 flex-1"
+                    style={{ paddingLeft: tiny ? 2 : 6 }}
+                >
+                    <StandingBottles
+                        catalog={catalog}
+                        bottles={compartment.previewBottles ?? []}
+                        units={units}
+                        front={front}
+                        total={total}
+                        width={bottle}
+                        available={available}
+                        gap={tiny ? 0.5 : size === 'sm' ? 1.5 : 3}
+                        delay={animateOpening ? 0.3 + index * 0.07 : 0}
+                        animate={animateOpening}
+                    />
+                    {/* Rebord translucide du balconnet */}
+                    {door && (
+                        <span
+                            className="absolute inset-x-0 bottom-0"
+                            style={{
+                                height: bottle * STAND_RATIO * 0.34,
+                                borderRadius: tiny ? 1 : 4,
+                                background:
+                                    'linear-gradient(180deg, rgb(255 255 255 / 0.55), rgb(214 226 238 / 0.82))',
+                                borderTop:
+                                    '1.5px solid rgb(255 255 255 / 0.95)',
+                                boxShadow: '0 2px 4px rgb(30 50 70 / 0.18)',
+                            }}
+                            aria-hidden
+                        />
+                    )}
+                </div>
+                {label && (
+                    <span
+                        className={cn(
+                            'flex w-[34%] shrink-0 flex-col items-end self-center pr-1 text-right',
+                            door ? 'text-[#2a1418]' : 'text-white',
+                        )}
+                    >
+                        <span className="max-w-full truncate text-[11px] font-bold">
+                            {compartment.name}
+                        </span>
+                        <CountLabel
+                            compartment={compartment}
+                            slots={compartment.capacity ?? null}
+                            compact={size === 'md'}
+                            light={door}
+                        />
+                    </span>
+                )}
+            </div>
+            {!door && (
+                <div
+                    className={cn(ledge === 'wood' && 'wood-texture')}
+                    style={{
+                        height: strip,
+                        borderRadius: tiny ? 1 : 3,
+                        background:
+                            ledge === 'metal'
+                                ? 'linear-gradient(180deg, #e2e5e9, #8e959d)'
+                                : undefined,
+                        boxShadow: '0 2px 4px rgb(0 0 0 / 0.4)',
+                    }}
+                    aria-hidden
+                />
+            )}
+        </div>
+    );
+}
+
+/** Width of a standing bottle, smaller when there are many rows. */
+const STAND_WIDTH: Record<VisualSize, number> = {
+    xs: 3,
+    sm: 6,
+    md: 9,
+    lg: 12,
+};
+
+/** Height of a standing bottle for its width. */
+const STAND_RATIO = 3.1;
+
+function standWidth(size: VisualSize, rows: number): number {
+    const base = STAND_WIDTH[size];
+
+    return rows <= 5 ? base : rows <= 8 ? base * 0.82 : base * 0.68;
+}
+
+/**
+ * Bottles standing side by side, label forward. Those that do not fit are
+ * counted in a badge.
+ */
+function StandingBottles({
+    catalog,
+    bottles,
+    units,
+    front,
+    total,
+    width,
+    available,
+    gap,
+    delay,
+    animate,
+}: {
+    catalog: Catalog;
+    bottles: CategoryValue[];
+    units: number;
+    front: number;
+    total: number;
+    width: number;
+    available: number;
+    gap: number;
+    delay: number;
+    animate: boolean;
+}) {
+    const fit = Math.max(1, Math.floor((available + gap) / (width + gap)));
+    const drawn = Math.max(1, Math.min(front, fit));
+    const more = Math.max(0, units - drawn);
+
+    return (
+        <motion.div
+            className="relative flex items-end justify-center"
+            style={{ gap, minHeight: width * STAND_RATIO }}
+            initial={animate ? { opacity: 0, y: 8 } : false}
+            animate={animate ? { opacity: 1, y: 0 } : undefined}
+            transition={{ delay, type: 'spring', stiffness: 300, damping: 24 }}
+        >
+            {Array.from({ length: drawn }, (_, i) => (
+                <StandingBottle
+                    key={i}
+                    catalog={catalog}
+                    category={
+                        i < units
+                            ? (bottles[i] ??
+                              bottles[bottles.length - 1] ??
+                              'red')
+                            : null
+                    }
+                    width={width}
+                />
+            ))}
+            {more > 0 && (
+                <span
+                    className={cn(
+                        'absolute -top-1.5 right-0 z-[3] rounded-full px-1 text-[9px] font-bold tabular-nums shadow',
+                        units > total
+                            ? 'bg-warm font-extrabold text-warm-foreground'
+                            : 'bg-black/55 text-white',
+                    )}
+                    title={`${more} bouteille${more > 1 ? 's' : ''} de plus`}
+                >
+                    +{more}
+                </span>
+            )}
+        </motion.div>
+    );
+}
+
+function StandingBottle({
+    catalog,
+    category,
+    width,
+}: {
+    catalog: Catalog;
+    category: CategoryValue | null;
+    width: number;
+}) {
+    const height = width * STAND_RATIO;
+    const round = `${width * 0.45}px ${width * 0.45}px ${Math.max(1, width * 0.12)}px ${Math.max(1, width * 0.12)}px`;
+
+    if (category === null) {
+        return (
+            <span
+                className="shrink-0"
+                style={{
+                    width,
+                    height: height * 0.7,
+                    borderRadius: round,
+                    background: 'rgb(255 255 255 / 0.05)',
+                    boxShadow: 'inset 0 0 0 1px rgb(127 127 127 / 0.35)',
+                }}
+            />
+        );
+    }
+
+    const option = findCategory(catalog, category);
+
+    return (
+        <span
+            className="relative z-[1] flex shrink-0 flex-col items-center"
+            style={{
+                width,
+                height,
+                filter: 'drop-shadow(0 1px 1px rgb(0 0 0 / 0.35))',
+            }}
+        >
+            <span
+                style={{
+                    width: width * 0.4,
+                    height: width * 0.42,
+                    background: option.capsule,
+                    borderRadius: `${width * 0.12}px ${width * 0.12}px 0 0`,
+                }}
+            />
+            <span
+                style={{
+                    width: width * 0.34,
+                    height: width * 0.5,
+                    background: option.glass,
+                }}
+            />
+            <span
+                className="relative w-full flex-1 overflow-hidden"
+                style={{
+                    borderRadius: round,
+                    background: `linear-gradient(180deg, ${option.glass} 0 24%, color-mix(in oklab, ${option.liquid} 55%, ${option.glass}) 24%)`,
+                }}
+            >
+                {width >= 6 && (
+                    <span
+                        className="absolute inset-x-[14%] rounded-[1px]"
+                        style={{
+                            top: '44%',
+                            height: '30%',
+                            background: '#f3ece0',
+                        }}
+                    />
+                )}
+                <span className="absolute inset-y-0 left-[18%] w-[14%] bg-white/20" />
+            </span>
+        </span>
+    );
+}
+
+/* ------------------------------------------------------------------ */
+/* Caisses en bois et cartons                                          */
+/* ------------------------------------------------------------------ */
+
+const CRATE_HEIGHTS: Record<VisualSize, number> = {
+    xs: 13,
+    sm: 42,
+    md: 62,
+    lg: 86,
+};
+
+function Crates(props: PartProps) {
+    const { size, compartments, name, tint } = props;
+    const count = compartments.length;
+    const cols = count <= 2 ? Math.max(1, count) : count <= 6 ? 3 : 4;
+    const gap = size === 'xs' ? 1.5 : size === 'sm' ? 4 : 6;
+    const crateWidth = (WIDTHS.cases[size] - gap * (cols - 1)) / cols;
+
+    return (
+        <div className="relative">
+            {(size === 'md' || size === 'lg') && name && (
+                <NamePlate name={name} tint={tint} />
+            )}
+            <div
+                className="relative grid"
+                style={{
+                    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                    gap,
+                }}
+            >
+                <AnimatePresence initial={false}>
+                    {compartments.map((compartment, index) => (
+                        <Compartment
+                            key={compartment.id}
+                            {...props}
+                            compartment={compartment}
+                            index={index}
+                            lift
+                        >
+                            <Crate
+                                {...props}
+                                compartment={compartment}
+                                index={index}
+                                crateWidth={crateWidth}
+                            />
+                        </Compartment>
+                    ))}
+                </AnimatePresence>
+            </div>
+            <Pallet size={size} />
+        </div>
+    );
+}
+
+function Crate({
+    compartment,
+    index,
+    size,
+    catalog,
+    tint,
+    crateWidth,
+    animateOpening,
+}: PartProps & {
+    compartment: VisualCompartment;
+    index: number;
+    crateWidth: number;
+}) {
+    const tiny = size === 'xs';
+    const height = CRATE_HEIGHTS[size];
+    const frame = tiny ? 1.5 : size === 'sm' ? 3 : 5;
+    const label = tiny || size === 'sm' ? 0 : size === 'md' ? 14 : 18;
+    const units = compartment.units ?? compartment.previewBottles?.length ?? 0;
+    const slots = compartment.capacity ?? Math.max(units, 6);
+    const innerW = crateWidth - frame * 2 - (tiny ? 1 : 4);
+    const innerH = height - label - frame * 2 - (tiny ? 1 : 4);
+    const dot = Math.max(
+        2,
+        Math.min(
+            size === 'lg' ? 14 : 11,
+            Math.floor(
+                Math.sqrt((innerW * innerH) / Math.max(1, slots)) * 0.84,
+            ),
+        ),
+    );
+    const perRow = Math.max(1, Math.floor(innerW / (dot + 1)));
+    const rows = Math.max(1, Math.floor(innerH / (dot + 1)));
+    const visible = Math.min(slots, perRow * rows);
+
+    return (
+        <div
+            className="wood-texture relative flex flex-col overflow-hidden"
+            style={{
+                height,
+                padding: frame,
+                borderRadius: tiny ? 1.5 : size === 'sm' ? 4 : 6,
+                boxShadow:
+                    '0 3px 6px -2px rgb(40 20 5 / 0.5), inset 0 0 0 1px rgb(60 30 10 / 0.35)',
+            }}
+        >
+            <div
+                className="flex min-h-0 flex-1 items-end justify-center overflow-hidden"
+                style={{
+                    padding: tiny ? 0.5 : 2,
+                    borderRadius: tiny ? 1 : 3,
+                    background:
+                        'linear-gradient(180deg, rgb(25 12 6 / 0.9), rgb(50 27 12 / 0.84))',
+                    boxShadow: 'inset 0 4px 10px rgb(0 0 0 / 0.6)',
+                }}
+            >
+                <BottleStack
+                    catalog={catalog}
+                    bottles={compartment.previewBottles ?? []}
+                    units={units}
+                    slots={visible}
+                    total={slots}
+                    dot={dot}
+                    perRow={perRow}
+                    delay={animateOpening ? 0.4 + index * 0.05 : 0}
+                    animate={animateOpening}
+                />
+            </div>
+            {label > 0 && (
+                <div
+                    className="relative flex shrink-0 items-center gap-1 pr-1 pl-2 text-white"
+                    style={{ height: label }}
+                >
+                    <span
+                        className="absolute top-1/2 left-0 h-2/3 w-[3px] -translate-y-1/2 rounded-full"
+                        style={{ background: tint }}
+                    />
+                    <span className="min-w-0 flex-1 truncate font-display text-[10px] font-extrabold tracking-wider uppercase drop-shadow-sm">
+                        {compartment.name}
+                    </span>
+                    <span className="shrink-0 text-[10px] font-bold tabular-nums drop-shadow-sm">
+                        {units === 0 ? 'Vide' : units}
+                    </span>
+                </div>
+            )}
+            {size === 'sm' && units > 0 && (
+                <span className="absolute top-1 right-1 rounded-full bg-black/45 px-1 text-[9px] font-bold text-white tabular-nums">
+                    {units}
+                </span>
+            )}
+        </div>
+    );
+}
+
+function Pallet({ size }: { size: VisualSize }) {
+    if (size === 'xs') {
+        return <div className="wood-texture mt-0.5 h-[2px] rounded-sm" />;
+    }
+
+    const height = size === 'sm' ? 5 : size === 'md' ? 7 : 9;
+
+    return (
+        <div aria-hidden style={{ marginTop: size === 'sm' ? 3 : 5 }}>
+            <div
+                className="wood-texture rounded-sm"
+                style={{ height, boxShadow: '0 2px 3px rgb(0 0 0 / 0.3)' }}
+            />
+            <div className="flex justify-between px-[4%]">
+                {[0, 1, 2].map((block) => (
+                    <span
+                        key={block}
+                        className="wood-texture"
+                        style={{
+                            width: '14%',
+                            height: height * 0.8,
+                            filter: 'brightness(0.78)',
+                        }}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/* ------------------------------------------------------------------ */
+/* Garde extérieure (caviste, garde-meuble, primeurs)                  */
+/* ------------------------------------------------------------------ */
+
+const BOX_HEIGHTS: Record<VisualSize, number> = {
+    xs: 12,
+    sm: 38,
+    md: 56,
+    lg: 76,
+};
+
+function Offsite(props: PartProps) {
+    const { size, compartments, name, tint } = props;
+    const tiny = size === 'xs';
+    const count = compartments.length;
+    const cols = count <= 3 ? Math.max(1, count) : count <= 6 ? 3 : 4;
+    const pad = tiny ? 3 : size === 'sm' ? 7 : 12;
+    const gap = tiny ? 2 : size === 'sm' ? 4 : 7;
+
+    return (
+        <div className="relative">
+            {/* Toit */}
+            <div
+                style={{
+                    height: tiny
+                        ? 9
+                        : size === 'sm'
+                          ? 22
+                          : size === 'md'
+                            ? 32
+                            : 44,
+                    margin: tiny ? '0 -2px' : '0 -6px',
+                    background: tint,
+                    clipPath: 'polygon(0 100%, 50% 0, 100% 100%)',
+                }}
+                aria-hidden
+            />
+            <div
+                className="stone-texture relative overflow-hidden border border-hairline"
+                style={{
+                    padding: pad,
+                    borderRadius: tiny ? '0 0 4px 4px' : '0 0 14px 14px',
+                    boxShadow: tiny
+                        ? '0 2px 6px rgb(40 20 10 / 0.2)'
+                        : '0 30px 50px -28px rgb(50 30 15 / 0.6)',
+                }}
+            >
+                {(size === 'md' || size === 'lg') && (
+                    <div className="mb-2 flex justify-center">
+                        <span className="max-w-[80%] truncate rounded-md bg-white/90 px-3 py-0.5 font-display text-[12px] font-bold text-[#2a1418] shadow-sm">
+                            {name ?? 'Garde extérieure'}
+                        </span>
+                    </div>
+                )}
+                {/* Porte de quai relevée */}
+                <div
+                    className="relative overflow-hidden"
+                    style={{
+                        borderRadius: tiny ? 2 : size === 'sm' ? 6 : 10,
+                        padding: tiny ? 2 : size === 'sm' ? 5 : 9,
+                        paddingTop: tiny ? 5 : size === 'sm' ? 12 : 18,
+                        background:
+                            'linear-gradient(180deg, rgb(40 32 28 / 0.94), rgb(24 19 17 / 0.96))',
+                        boxShadow: 'inset 0 6px 14px rgb(0 0 0 / 0.6)',
+                    }}
+                >
+                    <span
+                        className="absolute inset-x-0 top-0"
+                        style={{
+                            height: tiny ? 3 : size === 'sm' ? 7 : 11,
+                            background:
+                                'repeating-linear-gradient(180deg, #bfc4ca 0 2px, #8c939a 2px 4px)',
+                        }}
+                        aria-hidden
+                    />
+                    <div
+                        className="relative grid"
+                        style={{
+                            gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                            gap,
+                        }}
+                    >
+                        <AnimatePresence initial={false}>
+                            {compartments.map((compartment, index) => (
+                                <Compartment
+                                    key={compartment.id}
+                                    {...props}
+                                    compartment={compartment}
+                                    index={index}
+                                    lift
+                                >
+                                    <CardboardBox
+                                        catalog={props.catalog}
+                                        compartment={compartment}
+                                        size={size}
+                                        tint={tint}
+                                    />
+                                </Compartment>
+                            ))}
+                        </AnimatePresence>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/** A closed box: what is inside is written on its sticker. */
+function CardboardBox({
+    catalog,
+    compartment,
+    size,
+    tint,
+}: {
+    catalog: Catalog;
+    compartment: VisualCompartment;
+    size: VisualSize;
+    tint: string;
+}) {
+    const tiny = size === 'xs';
+    const units = compartment.units ?? compartment.previewBottles?.length ?? 0;
+    const colors = (compartment.previewBottles ?? []).slice(
+        0,
+        size === 'lg' ? 8 : 5,
+    );
+
+    return (
+        <div
+            className="relative flex flex-col items-center justify-center overflow-hidden"
+            style={{
+                height: BOX_HEIGHTS[size],
+                borderRadius: tiny ? 1 : 4,
+                background: 'linear-gradient(180deg, #dcba8a, #b98f5a)',
+                boxShadow:
+                    '0 3px 6px -2px rgb(0 0 0 / 0.5), inset 0 0 0 1px rgb(110 70 30 / 0.35)',
+            }}
+        >
+            <span className="absolute inset-x-0 top-[22%] h-px bg-[rgb(110_70_30/0.4)]" />
+            <span className="absolute inset-y-0 left-1/2 w-[16%] -translate-x-1/2 bg-[rgb(245_228_190/0.45)]" />
+            <span
+                className="absolute inset-y-0 left-0"
+                style={{ width: tiny ? 1.5 : 3, background: tint }}
+            />
+            {!tiny && (
+                <span className="relative mt-[16%] flex max-w-[86%] flex-col items-center rounded-[3px] bg-[#fbf7ef] px-1.5 py-0.5 text-[#2a1418] shadow-sm">
+                    {size !== 'sm' && (
+                        <span className="max-w-full truncate text-[10px] font-bold">
+                            {compartment.name}
+                        </span>
+                    )}
+                    <span className="flex items-center gap-0.5">
+                        {colors.map((category, i) => (
+                            <span
+                                key={i}
+                                className="size-1.5 rounded-full"
+                                style={{
+                                    background: findCategory(catalog, category)
+                                        .liquid,
+                                }}
+                            />
+                        ))}
+                        <span className="ml-0.5 text-[10px] font-extrabold tabular-nums">
+                            {units === 0 ? 'Vide' : units}
+                        </span>
+                    </span>
+                </span>
+            )}
+        </div>
+    );
+}
+
+/** The cellar's name on a small plate, above the compartments. */
+function NamePlate({ name, tint }: { name: string; tint: string }) {
+    return (
+        <div className="mb-2 flex justify-center">
+            <span
+                className="relative max-w-[80%] truncate rounded-full px-3 py-0.5 font-display text-[12px] font-bold text-white shadow-sm"
+                style={{ background: tint }}
+            >
+                {name}
+            </span>
         </div>
     );
 }

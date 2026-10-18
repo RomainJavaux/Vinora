@@ -6,16 +6,28 @@ enum CellarType: string
 {
     case Cabinet = 'cabinet';
     case Service = 'service';
+    case Builtin = 'builtin';
     case Rack = 'rack';
+    case Wall = 'wall';
     case Vault = 'vault';
+    case Cases = 'cases';
+    case Cupboard = 'cupboard';
+    case Fridge = 'fridge';
+    case Offsite = 'offsite';
 
     public function label(): string
     {
         return match ($this) {
             self::Cabinet => 'Armoire de garde',
             self::Service => 'Cave de service',
+            self::Builtin => 'Cave encastrable',
             self::Rack => 'Casier mural',
+            self::Wall => 'Mur à vin',
             self::Vault => 'Cave enterrée',
+            self::Cases => 'Caisses & cartons',
+            self::Cupboard => 'Placard ou étagère',
+            self::Fridge => 'Réfrigérateur',
+            self::Offsite => 'Garde extérieure',
         };
     }
 
@@ -24,8 +36,14 @@ enum CellarType: string
         return match ($this) {
             self::Cabinet => 'Armoire',
             self::Service => 'Service',
+            self::Builtin => 'Encastrable',
             self::Rack => 'Casier',
+            self::Wall => 'Mur à vin',
             self::Vault => 'Cave voûtée',
+            self::Cases => 'Caisses',
+            self::Cupboard => 'Placard',
+            self::Fridge => 'Frigo',
+            self::Offsite => 'Extérieur',
         };
     }
 
@@ -34,8 +52,14 @@ enum CellarType: string
         return match ($this) {
             self::Cabinet => 'Cave électrique de vieillissement à clayettes',
             self::Service => 'Petite cave pour avoir les bouteilles à température',
+            self::Builtin => 'Cave sous plan de travail, intégrée à la cuisine',
             self::Rack => 'Range-bouteilles en bois ou en métal, par rangées',
+            self::Wall => 'Vitrine ou mur éclairé, étiquettes en façade',
             self::Vault => 'Cave voûtée ou cellier, avec ses casiers',
+            self::Cases => 'Bouteilles gardées dans leurs caisses en bois ou leurs cartons',
+            self::Cupboard => 'Bouteilles debout, à boire dans les semaines qui viennent',
+            self::Fridge => 'Quelques bouteilles au frais, prêtes à servir',
+            self::Offsite => 'Chez le caviste, en garde-meuble ou primeurs pas encore livrés',
         };
     }
 
@@ -43,28 +67,38 @@ enum CellarType: string
     public function compartmentLabel(): string
     {
         return match ($this) {
-            self::Cabinet, self::Service => 'Clayette',
-            self::Rack => 'Rangée',
+            self::Cabinet, self::Service, self::Builtin => 'Clayette',
+            self::Rack, self::Wall => 'Rangée',
             self::Vault => 'Casier',
+            self::Cases => 'Caisse',
+            self::Cupboard => 'Étagère',
+            self::Fridge => 'Balconnet',
+            self::Offsite => 'Lot',
         };
     }
 
     public function compartmentPlural(): string
     {
         return match ($this) {
-            self::Cabinet, self::Service => 'clayettes',
-            self::Rack => 'rangées',
+            self::Cabinet, self::Service, self::Builtin => 'clayettes',
+            self::Rack, self::Wall => 'rangées',
             self::Vault => 'casiers',
+            self::Cases => 'caisses',
+            self::Cupboard => 'étagères',
+            self::Fridge => 'balconnets',
+            self::Offsite => 'lots',
         };
     }
 
     public function defaultCompartments(): int
     {
         return match ($this) {
-            self::Cabinet => 6,
-            self::Service => 3,
-            self::Rack => 4,
-            self::Vault => 6,
+            self::Cabinet, self::Vault => 6,
+            self::Service, self::Builtin, self::Cupboard => 3,
+            self::Rack, self::Cases => 4,
+            self::Wall => 5,
+            self::Fridge => 2,
+            self::Offsite => 1,
         };
     }
 
@@ -72,9 +106,14 @@ enum CellarType: string
     {
         return match ($this) {
             self::Cabinet => 14,
-            self::Service => 6,
+            self::Service, self::Builtin => 6,
             self::Rack => 10,
+            self::Wall => 12,
             self::Vault => 16,
+            self::Cases => 40,
+            self::Cupboard => 8,
+            self::Fridge => 5,
+            self::Offsite => 20,
         };
     }
 
@@ -82,10 +121,12 @@ enum CellarType: string
     public function defaultCapacity(): int
     {
         return match ($this) {
-            self::Cabinet => 8,
-            self::Service => 6,
-            self::Rack => 6,
+            self::Cabinet, self::Cupboard => 8,
+            self::Service, self::Rack, self::Wall, self::Cases => 6,
+            self::Builtin => 7,
             self::Vault => 24,
+            self::Fridge => 4,
+            self::Offsite => 12,
         };
     }
 
@@ -93,15 +134,21 @@ enum CellarType: string
     {
         return match ($this) {
             self::Cabinet => 60,
-            self::Service, self::Rack => 30,
+            self::Service, self::Rack, self::Cupboard => 30,
+            self::Builtin, self::Wall, self::Cases => 24,
             self::Vault => 300,
+            self::Fridge => 12,
+            self::Offsite => 600,
         };
     }
 
-    /** Bottles can be stored one behind the other (not in vault bins). */
+    /**
+     * Bottles can be stored one behind the other. Not in vault bins, cases,
+     * the fridge door or a lot kept elsewhere, whose capacity is the whole.
+     */
     public function hasDepth(): bool
     {
-        return $this !== self::Vault;
+        return ! in_array($this, [self::Vault, self::Cases, self::Fridge, self::Offsite], true);
     }
 
     public function maxDepth(): int
@@ -113,11 +160,21 @@ enum CellarType: string
     public function defaultTemperature(): ?float
     {
         return match ($this) {
-            self::Cabinet => 12.0,
+            self::Cabinet, self::Builtin => 12.0,
             self::Service => 8.0,
-            self::Rack => null,
             self::Vault => 13.0,
+            self::Fridge => 5.0,
+            default => null,
         };
+    }
+
+    /**
+     * Kept cool to be served soon, not to age: the climate advice speaks of
+     * serving temperature.
+     */
+    public function forServing(): bool
+    {
+        return in_array($this, [self::Service, self::Fridge], true);
     }
 
     /**

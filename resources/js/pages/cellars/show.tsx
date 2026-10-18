@@ -397,13 +397,15 @@ function MiniStat({
 }
 
 function Climate({ cellar }: { cellar: Cellar }) {
+    const catalog = useCatalog();
+
     if (cellar.temperature === null && cellar.humidity === null) {
         return null;
     }
 
     const temperature = cellar.temperature;
     const humidity = cellar.humidity;
-    const service = cellar.type === 'service';
+    const service = findCellarType(catalog, cellar.type).forServing;
 
     const temperatureAdvice =
         temperature === null

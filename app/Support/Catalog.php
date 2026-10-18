@@ -134,6 +134,7 @@ final class Catalog
                 'maxCapacity' => $type->maxCapacity(),
                 'temperature' => $type->defaultTemperature(),
                 'maxDepth' => $type->maxDepth(),
+                'forServing' => $type->forServing(),
             ], CellarType::cases()),
             'agings' => array_map(fn (AgingPotential $aging) => [
                 'value' => $aging->value,

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\CellarType;
 use App\Enums\MovementType;
 use App\Models\User;
 use App\Models\WineMovement;
@@ -61,7 +62,7 @@ class DashboardTest extends TestCase
                 ->where('household.name', 'La maison')
                 ->where('household.role', 'owner')
                 ->has('catalog.categories', 8)
-                ->has('catalog.cellarTypes', 4),
+                ->has('catalog.cellarTypes', count(CellarType::cases())),
             );
     }
 

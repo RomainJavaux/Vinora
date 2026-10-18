@@ -130,6 +130,8 @@
     --wood-dark: #8a5a33;
     --stone-from: #e9e1d4;
     --stone-to: #cfc3b0;
+    --counter-from: #e8e2d8;
+    --counter-to: #bfb4a4;
 
     --radius: 1rem;
     --sidebar: oklch(0.975 0.012 75);
@@ -194,6 +196,8 @@
     --wood-dark: #5a3a21;
     --stone-from: #4b4038;
     --stone-to: #2f2722;
+    --counter-from: #6b625a;
+    --counter-to: #403933;
 
     --sidebar: oklch(0.2 0.028 15);
     --sidebar-foreground: oklch(0.95 0.012 70);

@@ -27,7 +27,17 @@ export type FormatValue =
     | 'magnum'
     | 'jeroboam';
 
-export type CellarTypeValue = 'cabinet' | 'service' | 'rack' | 'vault';
+export type CellarTypeValue =
+    | 'cabinet'
+    | 'service'
+    | 'builtin'
+    | 'rack'
+    | 'wall'
+    | 'vault'
+    | 'cases'
+    | 'cupboard'
+    | 'fridge'
+    | 'offsite';
 
 export type AgingValue = 'early' | 'medium' | 'long' | 'very_long';
 
@@ -229,6 +239,8 @@ export type CellarTypeOption = {
     maxCapacity: number;
     temperature: number | null;
     maxDepth: number;
+    /** Kept cool to be served soon, not to age. */
+    forServing: boolean;
 };
 
 export type AgingOption = {

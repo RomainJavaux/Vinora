@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Enums\CellarType;
 use App\Models\Cellar;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class CellarTest extends TestCase
@@ -35,6 +37,56 @@ class CellarTest extends TestCase
         $this->assertSame(13.0, $cellar->temperature);
         $this->assertSame([24, 24], $cellar->compartments()->pluck('capacity')->all());
         $this->assertSame(2, $cellar->position);
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string, 2: bool}>
+     */
+    public static function newTypes(): array
+    {
+        return [
+            'cave encastrable' => ['builtin', 'Clayette', true],
+            'mur à vin' => ['wall', 'Rangée', true],
+            'caisses' => ['cases', 'Caisse', false],
+            'placard' => ['cupboard', 'Étagère', true],
+            'réfrigérateur' => ['fridge', 'Balconnet', false],
+            'garde extérieure' => ['offsite', 'Lot', false],
+        ];
+    }
+
+    #[DataProvider('newTypes')]
+    public function test_every_kind_of_storage_can_be_created(string $type, string $compartment, bool $depth): void
+    {
+        [$user] = $this->userWithCellar();
+        $option = CellarType::from($type);
+
+        $this->actingAs($user)->post(route('cellars.store'), [
+            'name' => $option->label(),
+            'type' => $type,
+            'color' => 'oak',
+            'depth' => $depth ? 2 : 1,
+            'compartments' => array_map(fn (string $name) => ['name' => $name], $option->defaultNames($option->defaultCompartments())),
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $cellar = Cellar::query()->where('type', $type)->sole();
+
+        $this->assertSame($depth ? 2 : 1, $cellar->depth);
+        $this->assertSame("{$compartment} 1", $cellar->compartments()->value('name'));
+        $this->assertSame($option->defaultCompartments(), $cellar->compartments()->count());
+
+        $this->actingAs($user)
+            ->get(route('cellars.show', $cellar))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('cellar.type', $type));
+    }
+
+    public function test_a_fridge_speaks_of_serving_not_ageing(): void
+    {
+        $this->assertTrue(CellarType::Fridge->forServing());
+        $this->assertTrue(CellarType::Service->forServing());
+        $this->assertFalse(CellarType::Cabinet->forServing());
+        $this->assertSame(5.0, CellarType::Fridge->defaultTemperature());
+        $this->assertNull(CellarType::Offsite->defaultTemperature());
     }
 
     public function test_saving_synchronises_the_compartments(): void
