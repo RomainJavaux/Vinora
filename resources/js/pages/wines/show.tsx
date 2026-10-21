@@ -90,6 +90,7 @@ const RING_EMOJI = {
     soon: '⏳',
     past: '⚠️',
     unknown: '❔',
+    keep: '🎁',
 } as const;
 
 export default function WineShow({

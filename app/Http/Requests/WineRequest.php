@@ -34,6 +34,7 @@ class WineRequest extends FormRequest
             'value' => self::decimal($this->input('value')),
             'alcohol' => self::decimal($this->input('alcohol')),
             'remove_photo' => $this->boolean('remove_photo'),
+            'keepsake' => $this->boolean('keepsake'),
         ]);
     }
 
@@ -69,6 +70,7 @@ class WineRequest extends FormRequest
             'aging' => ['nullable', Rule::enum(AgingPotential::class)],
             'drink_from' => ['nullable', 'integer', 'between:1800,2300'],
             'drink_until' => ['nullable', 'integer', 'between:1800,2300', 'gte:drink_from'],
+            'keepsake' => ['boolean'],
             'tags' => ['nullable', 'array', 'max:'.self::MAX_TAGS],
             'tags.*' => ['string', 'max:30'],
             'compartment_id' => ['required', 'integer', $household instanceof Household ? new CompartmentInHousehold($household) : 'prohibited'],
@@ -137,6 +139,7 @@ class WineRequest extends FormRequest
             'aging' => 'potentiel de garde',
             'drink_from' => 'début de la fenêtre',
             'drink_until' => 'fin de la fenêtre',
+            'keepsake' => 'ne pas boire',
             'tags' => 'étiquettes',
             'compartment_id' => 'emplacement',
             'placements' => 'autres emplacements',

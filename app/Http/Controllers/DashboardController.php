@@ -53,7 +53,7 @@ class DashboardController extends Controller
         ];
 
         $priority = $stock
-            ->filter(fn (Wine $wine) => $wine->drink_until !== null && $wine->windowStatus() !== DrinkWindow::YOUNG)
+            ->filter(fn (Wine $wine) => $wine->drink_until !== null && $wine->canBeSuggested())
             ->sortBy([
                 fn (Wine $a, Wine $b) => $a->drink_until <=> $b->drink_until,
                 fn (Wine $a, Wine $b) => ($a->vintage ?? PHP_INT_MAX) <=> ($b->vintage ?? PHP_INT_MAX),
@@ -62,7 +62,7 @@ class DashboardController extends Controller
             ->values();
 
         $suggestions = $stock
-            ->filter(fn (Wine $wine) => $wine->windowStatus() !== DrinkWindow::YOUNG)
+            ->filter(fn (Wine $wine) => $wine->canBeSuggested())
             ->sortBy(fn (Wine $wine) => $wine->drink_until ?? $year + 100)
             ->take(40)
             ->values();

@@ -148,6 +148,7 @@ export const statusColor: Record<WindowStatus, string> = {
     soon: 'var(--soon)',
     past: 'var(--past)',
     unknown: 'var(--muted-foreground)',
+    keep: 'var(--keep)',
 };
 
 export function isUrgent(status: WindowStatus): boolean {

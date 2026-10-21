@@ -18,6 +18,8 @@ const STATUS_WEIGHT: Record<WindowStatus, number> = {
     ready: 2,
     unknown: 1,
     young: 0,
+    // Gifts and souvenirs are never drawn.
+    keep: 0,
 };
 
 function weightOf(wine: Wine, dish: DishOption | null): number {

@@ -427,6 +427,7 @@ class WineImporter
             'category' => $this->category($raw, $errors),
             'format' => $this->format($raw, $errors),
             'aging' => $this->aging($raw, $errors),
+            'keepsake' => $this->yes($raw, $errors),
             'grapes' => WineRequest::cleanList(str_replace(';', ',', (string) $this->text($raw))),
             'tags' => WineRequest::cleanList(str_replace(';', ',', (string) $this->text($raw)), lowercase: true),
             'description' => $this->text($raw, multiline: true),
@@ -461,6 +462,7 @@ class WineImporter
             'bought_from' => $text(80),
             'drink_from' => ['nullable', 'integer', 'between:1800,2300'],
             'drink_until' => ['nullable', 'integer', 'between:1800,2300'],
+            'keepsake' => ['boolean'],
             'tags' => ['nullable', 'array', 'max:'.WineRequest::MAX_TAGS],
             'tags.*' => ['string', 'max:30'],
             'description' => $text(2000),
@@ -897,6 +899,28 @@ class WineImporter
         $errors[] = "Format « {$text} » inconnu (choisis : {$choices}).";
 
         return null;
+    }
+
+    /**
+     * @param  list<string>  $errors
+     */
+    private function yes(mixed $value, array &$errors): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        $key = WineSheet::normalize($this->text($value) ?? '');
+
+        if (in_array($key, ['oui', 'o', 'yes', 'y', 'x', '1', 'vrai', 'true'], true)) {
+            return true;
+        }
+
+        if (! in_array($key, ['', 'non', 'n', 'no', '0', 'faux', 'false'], true)) {
+            $errors[] = "« Ne pas boire » : écris « Oui » ou laisse la case vide (et pas « {$this->text($value)} »).";
+        }
+
+        return false;
     }
 
     /**

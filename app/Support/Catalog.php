@@ -57,14 +57,6 @@ final class Catalog
     ];
 
     /** @var list<string> */
-    public const GRAPES = [
-        'Merlot', 'Cabernet Sauvignon', 'Cabernet Franc', 'Pinot Noir', 'Syrah', 'Grenache', 'Mourvèdre',
-        'Gamay', 'Malbec', 'Carignan', 'Cinsault', 'Tannat', 'Chardonnay', 'Sauvignon Blanc', 'Chenin',
-        'Riesling', 'Gewurztraminer', 'Pinot Gris', 'Viognier', 'Sémillon', 'Muscat', 'Savagnin',
-        'Marsanne', 'Roussanne', 'Tempranillo', 'Sangiovese', 'Nebbiolo', 'Zinfandel',
-    ];
-
-    /** @var list<string> */
     public const BOUGHT_FROM = ['Caviste', 'Au domaine', 'Salon des vins', 'Foire aux vins', 'En ligne', 'Supermarché', 'Cadeau', 'Enchères'];
 
     /**
@@ -159,7 +151,7 @@ final class Catalog
             'locations' => self::LOCATIONS,
             'regions' => self::REGIONS,
             'countries' => self::COUNTRIES,
-            'grapes' => self::GRAPES,
+            'grapes' => Grapes::all(),
             'boughtFrom' => self::BOUGHT_FROM,
             'dishes' => self::DISHES,
             'compartmentSuggestions' => self::COMPARTMENT_SUGGESTIONS['default'],

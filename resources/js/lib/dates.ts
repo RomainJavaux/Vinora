@@ -162,6 +162,8 @@ export function windowLabel(window: DrinkWindowInfo): string {
             return window.until === year - 1
                 ? 'Passé depuis l’an dernier'
                 : `Passé depuis ${window.until}`;
+        case 'keep':
+            return 'À garder, pas à boire';
         default:
             return 'Sans fenêtre de garde';
     }
@@ -178,6 +180,8 @@ export function windowShort(window: DrinkWindowInfo): string {
             return 'À boire cette année';
         case 'past':
             return 'Passé l’apogée';
+        case 'keep':
+            return 'À garder';
         default:
             return 'Sans fenêtre';
     }
@@ -213,6 +217,8 @@ export function windowRingText(window: DrinkWindowInfo): {
                 value: `+${years(year - (window.until ?? year))}`,
                 caption: 'de retard',
             };
+        case 'keep':
+            return { value: '🎁', caption: 'à garder' };
         default:
             return { value: '—', caption: '' };
     }

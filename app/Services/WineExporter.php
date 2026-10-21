@@ -167,6 +167,7 @@ class WineExporter
             'aging' => $wine->aging?->label(),
             'drink_from' => $wine->drink_from,
             'drink_until' => $wine->drink_until,
+            'keepsake' => $wine->keepsake ? 'Oui' : null,
             'tags' => implode(', ', $wine->tags ?? []),
             'description' => $wine->description,
             'window' => $this->windowLabel($wine),
@@ -199,6 +200,7 @@ class WineExporter
             DrinkWindow::READY => $wine->drink_until !== null ? "À boire (jusqu’en {$wine->drink_until})" : 'À boire',
             DrinkWindow::SOON => 'À boire cette année',
             DrinkWindow::PAST => "Passé (depuis {$wine->drink_until})",
+            DrinkWindow::KEEP => 'À garder (ne pas boire)',
             default => '',
         };
     }
@@ -249,6 +251,9 @@ class WineExporter
             $lists['cellar'] = '$D$2:$D$'.($cellarCount + 1);
         }
 
+        // Written in the rule itself rather than in the « Listes » sheet.
+        $lists['keepsake'] = '"Oui,Non"';
+
         foreach (WineSheet::columns($withPrices) as $index => $column) {
             if (! isset($lists[$column['key']])) {
                 continue;
@@ -265,7 +270,9 @@ class WineExporter
                 ->setShowErrorMessage(true)
                 ->setErrorTitle('Valeur inconnue')
                 ->setError('Choisis une valeur dans la liste (onglet « '.WineSheet::LISTS_SHEET.' »).')
-                ->setFormula1("'".WineSheet::LISTS_SHEET."'!".$lists[$column['key']]);
+                ->setFormula1(str_starts_with($lists[$column['key']], '"')
+                    ? $lists[$column['key']]
+                    : "'".WineSheet::LISTS_SHEET."'!".$lists[$column['key']]);
 
             $sheet->setDataValidation($range, $validation);
         }
@@ -344,6 +351,7 @@ class WineExporter
             ['• « Couleur », « Format », « Potentiel de garde » et « Cave » proposent une liste : leurs valeurs sont dans l’onglet « Listes ».', false],
             ['• « Clayette » doit exister dans la cave indiquée (voir l’onglet « Listes »). Si elle est vide, le vin va sur la première clayette.', false],
             ['• « Quantité » à 0 marque un vin comme terminé.', false],
+            ['• « Ne pas boire » à « Oui » : un cadeau, un souvenir ou une bouteille de collection, que Vinora ne proposera jamais à boire.', false],
             ['• « Cépages » et « Étiquettes » : sépare les valeurs par des virgules.', false],
             ['• Si « À boire dès » et « À boire jusqu’en » sont vides, Vinora calcule la fenêtre depuis le millésime et le potentiel de garde.', false],
             ...($withPrices ? [['• Les prix sont par bouteille, en euros.', false]] : []),

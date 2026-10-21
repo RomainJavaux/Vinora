@@ -51,6 +51,7 @@ class WineResource extends JsonResource
             'finishedAt' => $wine->finished_at?->toIso8601String(),
             'createdAt' => $wine->created_at?->toIso8601String(),
             'window' => $wine->window(),
+            'keepsake' => $wine->keepsake,
             'compartmentId' => $wine->compartment_id,
             'location' => $compartment !== null && $cellar !== null ? [
                 'cellarId' => $cellar->id,

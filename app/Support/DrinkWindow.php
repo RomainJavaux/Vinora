@@ -17,6 +17,7 @@ use Carbon\CarbonInterface;
  *  - soon    : last year of the window, drink it now (amber)
  *  - past    : the window is over (red)
  *  - unknown : no window
+ *  - keep    : not to be drunk (gift, souvenir), whatever the window
  */
 final class DrinkWindow
 {
@@ -29,6 +30,9 @@ final class DrinkWindow
     public const PAST = 'past';
 
     public const UNKNOWN = 'unknown';
+
+    /** Kept rather than drunk (gift, souvenir, collection): never suggested. */
+    public const KEEP = 'keep';
 
     /**
      * Suggest a drinking window from the colour, the ageing potential and

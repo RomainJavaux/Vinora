@@ -53,6 +53,7 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
     const [sort, setSort] = useState<Sort>('window');
     const [urgentOnly, setUrgentOnly] = useState(false);
     const [youngOnly, setYoungOnly] = useState(false);
+    const [keptOnly, setKeptOnly] = useState(false);
     const [cellarId, setCellarId] = useState<number | null>(null);
     const [category, setCategory] = useState<CategoryValue | null>(null);
     // The lots of the wine being opened (several when it is in several places).
@@ -86,6 +87,7 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
     const youngCount = items.filter(
         (wine) => wine.window.status === 'young',
     ).length;
+    const keptCount = items.filter((wine) => wine.keepsake).length;
     const presentCategories = catalog.categories.filter((option) =>
         items.some((wine) => wine.category === option.value),
     );
@@ -100,7 +102,9 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
                 case 'recent':
                     return (b.createdAt ?? '').localeCompare(a.createdAt ?? '');
                 default:
+                    // Bottles kept aside come last: they are not to be drunk.
                     return (
+                        Number(a.keepsake) - Number(b.keepsake) ||
                         (a.drinkUntil ?? 9999) - (b.drinkUntil ?? 9999) ||
                         a.name.localeCompare(b.name, 'fr')
                     );
@@ -114,6 +118,7 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
             (tab === 'finished' ||
                 ((!urgentOnly || isUrgent(wine.window.status)) &&
                     (!youngOnly || wine.window.status === 'young') &&
+                    (!keptOnly || wine.keepsake) &&
                     (!cellarId || wine.location?.cellarId === cellarId) &&
                     (!category || wine.category === category))),
     );
@@ -139,6 +144,7 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
     const filtering =
         urgentOnly ||
         youngOnly ||
+        keptOnly ||
         cellarId !== null ||
         category !== null ||
         query !== '';
@@ -148,6 +154,7 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
         setQuery('');
         setUrgentOnly(false);
         setYoungOnly(false);
+        setKeptOnly(false);
         setCellarId(null);
         setCategory(null);
     };
@@ -300,6 +307,16 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
                             emoji="🌱"
                         >
                             Trop jeunes · {youngCount}
+                        </Chip>
+                    )}
+                    {keptCount > 0 && (
+                        <Chip
+                            active={keptOnly}
+                            color="var(--keep)"
+                            onClick={() => setKeptOnly((value) => !value)}
+                            emoji="🎁"
+                        >
+                            À garder · {keptCount}
                         </Chip>
                     )}
                     {cellars.length > 1 &&

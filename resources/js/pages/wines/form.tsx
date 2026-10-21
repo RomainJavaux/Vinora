@@ -25,6 +25,7 @@ import {
     useLabelReader,
 } from '@/components/wines/label-reading';
 import type { LabelFields } from '@/components/wines/label-reading';
+import { GrapePicker } from '@/components/wines/grape-picker';
 import { LocationPicker } from '@/components/wines/location-picker';
 import { SplitPlaces } from '@/components/wines/split-places';
 import type { Placement } from '@/components/wines/split-places';
@@ -83,6 +84,8 @@ type FormData = {
     drink_from: number | null;
     drink_until: number | null;
     tags: string[];
+    /** Gift, souvenir, collection: never suggested. */
+    keepsake: boolean;
     compartment_id: number | null;
     from: number | null;
     placements?: { compartment_id: number; quantity: number }[];
@@ -130,6 +133,7 @@ export default function WineForm({
         drink_from: wine?.drinkFrom ?? null,
         drink_until: wine?.drinkUntil ?? null,
         tags: base?.tags ?? [],
+        keepsake: wine?.keepsake ?? false,
         compartment_id: defaultCompartmentId,
         from: source?.id ?? null,
     });
@@ -800,6 +804,9 @@ export default function WineForm({
                             <GrapePicker
                                 value={data.grapes}
                                 onChange={(grapes) => setData('grapes', grapes)}
+                                category={data.category}
+                                region={data.region}
+                                country={data.country}
                             />
                             <InputError message={errors.grapes} />
                         </div>
@@ -879,7 +886,9 @@ export default function WineForm({
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                                 {catalog.agings.map((option) => {
-                                    const active = aging === option.value;
+                                    const active =
+                                        !data.keepsake &&
+                                        aging === option.value;
 
                                     return (
                                         <button
@@ -887,7 +896,11 @@ export default function WineForm({
                                             type="button"
                                             aria-pressed={active}
                                             onClick={() => {
-                                                setData('aging', option.value);
+                                                setData((current) => ({
+                                                    ...current,
+                                                    aging: option.value,
+                                                    keepsake: false,
+                                                }));
                                                 setManualWindow(false);
                                             }}
                                             className={cn(
@@ -909,9 +922,71 @@ export default function WineForm({
                                         </button>
                                     );
                                 })}
+                                <button
+                                    type="button"
+                                    aria-pressed={data.keepsake}
+                                    onClick={() =>
+                                        setData('keepsake', !data.keepsake)
+                                    }
+                                    className={cn(
+                                        'col-span-2 flex items-center gap-3 rounded-2xl border p-3 text-left transition-[transform,background-color] active:scale-[0.98] sm:col-span-4',
+                                        data.keepsake
+                                            ? 'border-keep bg-keep/12 ring-1 ring-keep'
+                                            : 'border-dashed border-border bg-card hover:bg-accent/60',
+                                    )}
+                                >
+                                    <span className="text-2xl" aria-hidden>
+                                        🎁
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-sm font-bold">
+                                            Ne pas boire
+                                        </span>
+                                        <span className="block text-[12px] text-muted-foreground">
+                                            Cadeau, souvenir ou bouteille de
+                                            collection : Vinora ne la proposera
+                                            jamais.
+                                        </span>
+                                    </span>
+                                    <span
+                                        className={cn(
+                                            'flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+                                            data.keepsake
+                                                ? 'border-keep bg-keep text-white'
+                                                : 'border-border',
+                                        )}
+                                        aria-hidden
+                                    >
+                                        {data.keepsake && (
+                                            <Check className="size-3.5" />
+                                        )}
+                                    </span>
+                                </button>
                             </div>
 
-                            <div className="surface p-4">
+                            <AnimatePresence initial={false}>
+                                {data.keepsake && (
+                                    <motion.p
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="overflow-hidden rounded-2xl bg-keep/10 px-4 py-3 text-[14px]"
+                                    >
+                                        Elle reste dans ta cave et dans ton
+                                        stock, mais n’apparaîtra ni dans « À
+                                        boire vite », ni dans « Quelle bouteille
+                                        ce soir ? ». Tu peux toujours l’ouvrir
+                                        si l’occasion se présente.
+                                    </motion.p>
+                                )}
+                            </AnimatePresence>
+
+                            <div
+                                className={cn(
+                                    'surface p-4 transition-opacity',
+                                    data.keepsake && 'opacity-50',
+                                )}
+                            >
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
                                         <p className="text-[13px] font-semibold text-muted-foreground">
@@ -1017,7 +1092,7 @@ export default function WineForm({
                                     </button>
                                 )}
                             </div>
-                            {agingOption && (
+                            {agingOption && !data.keepsake && (
                                 <p className="text-[13px] text-muted-foreground">
                                     Conseil pour un{' '}
                                     {category.label.toLowerCase()} en{' '}
@@ -1311,77 +1386,6 @@ function MoneyInput({
             </div>
             <InputError message={error} />
         </label>
-    );
-}
-
-function GrapePicker({
-    value,
-    onChange,
-}: {
-    value: string[];
-    onChange: (value: string[]) => void;
-}) {
-    const catalog = useCatalog();
-    const [expanded, setExpanded] = useState(false);
-    const [custom, setCustom] = useState('');
-    const list = [
-        ...value.filter((grape) => !catalog.grapes.includes(grape)),
-        ...catalog.grapes,
-    ];
-    const shown = expanded ? list : list.slice(0, Math.max(12, value.length));
-
-    const toggle = (grape: string) =>
-        onChange(
-            value.includes(grape)
-                ? value.filter((item) => item !== grape)
-                : value.length >= 6
-                  ? value
-                  : [...value, grape],
-        );
-
-    return (
-        <div>
-            <p className="mb-2 text-sm font-semibold">
-                Cépages{' '}
-                <span className="font-normal text-muted-foreground">
-                    ({value.length}/6)
-                </span>
-            </p>
-            <div className="flex flex-wrap gap-2">
-                {shown.map((grape) => (
-                    <Chip
-                        key={grape}
-                        size="sm"
-                        active={value.includes(grape)}
-                        onClick={() => toggle(grape)}
-                    >
-                        {grape}
-                    </Chip>
-                ))}
-                {!expanded && list.length > shown.length && (
-                    <Chip size="sm" onClick={() => setExpanded(true)}>
-                        + {list.length - shown.length} autres
-                    </Chip>
-                )}
-            </div>
-            <Input
-                value={custom}
-                onChange={(event) => setCustom(event.target.value)}
-                onKeyDown={(event) => {
-                    if (
-                        (event.key === 'Enter' || event.key === ',') &&
-                        custom.trim()
-                    ) {
-                        event.preventDefault();
-                        toggle(custom.trim());
-                        setCustom('');
-                    }
-                }}
-                placeholder="Un autre cépage ? Entrée pour l’ajouter"
-                className="mt-2"
-                maxLength={40}
-            />
-        </div>
     );
 }
 

@@ -45,6 +45,7 @@ use Illuminate\Support\Facades\Storage;
  * @property AgingPotential|null $aging
  * @property int|null $drink_from
  * @property int|null $drink_until
+ * @property bool $keepsake Not to be drunk: never suggested
  * @property list<string>|null $tags
  * @property float|null $rating
  * @property CarbonImmutable|null $finished_at
@@ -58,7 +59,7 @@ use Illuminate\Support\Facades\Storage;
     'household_id', 'compartment_id', 'created_by', 'name', 'producer', 'category', 'vintage', 'appellation',
     'region', 'country', 'grapes', 'alcohol', 'description', 'photo_path', 'quantity', 'initial_quantity',
     'format', 'price_cents', 'value_cents', 'purchased_on', 'bought_from', 'aging', 'drink_from',
-    'drink_until', 'tags', 'rating', 'finished_at',
+    'drink_until', 'keepsake', 'tags', 'rating', 'finished_at',
 ])]
 class Wine extends Model
 {
@@ -85,6 +86,7 @@ class Wine extends Model
             'value_cents' => 'integer',
             'drink_from' => 'integer',
             'drink_until' => 'integer',
+            'keepsake' => 'boolean',
             'purchased_on' => 'date',
             'finished_at' => 'datetime',
         ];
@@ -148,7 +150,7 @@ class Wine extends Model
      */
     public function scopeUrgent(Builder $query, ?int $year = null): Builder
     {
-        return $query->whereNotNull('drink_until')->where('drink_until', '<=', $year ?? now()->year);
+        return $query->where('keepsake', false)->whereNotNull('drink_until')->where('drink_until', '<=', $year ?? now()->year);
     }
 
     /**
@@ -162,6 +164,7 @@ class Wine extends Model
         $year ??= now()->year;
 
         return $query
+            ->where('keepsake', false)
             ->where(fn (Builder $q) => $q->whereNull('drink_from')->orWhere('drink_from', '<=', $year))
             ->where(fn (Builder $q) => $q->whereNull('drink_until')->orWhere('drink_until', '>=', $year))
             ->where(fn (Builder $q) => $q->whereNotNull('drink_from')->orWhereNotNull('drink_until'));
@@ -172,12 +175,24 @@ class Wine extends Model
      */
     public function window(): array
     {
-        return DrinkWindow::describe($this->drink_from, $this->drink_until, $this->vintage, $this->purchased_on ?? $this->created_at);
+        $window = DrinkWindow::describe($this->drink_from, $this->drink_until, $this->vintage, $this->purchased_on ?? $this->created_at);
+
+        if ($this->keepsake) {
+            $window['status'] = DrinkWindow::KEEP;
+        }
+
+        return $window;
     }
 
     public function windowStatus(): string
     {
-        return DrinkWindow::status($this->drink_from, $this->drink_until);
+        return $this->keepsake ? DrinkWindow::KEEP : DrinkWindow::status($this->drink_from, $this->drink_until);
+    }
+
+    /** Whether the wine may be suggested: in its window, not kept aside. */
+    public function canBeSuggested(): bool
+    {
+        return ! in_array($this->windowStatus(), [DrinkWindow::YOUNG, DrinkWindow::KEEP], true);
     }
 
     public function isUrgent(): bool

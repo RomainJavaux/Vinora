@@ -304,7 +304,7 @@ class WineSpreadsheetTest extends TestCase
     public function test_members_without_prices_cannot_change_them_by_import(): void
     {
         [$owner, $household, $cellar] = $this->userWithCellar();
-        $wine = $this->wineIn($this->compartment($cellar), ['name' => 'Château Talbot', 'price_cents' => 4250]);
+        $wine = $this->wineIn($this->compartment($cellar), ['name' => 'Château Talbot', 'price_cents' => 4250, 'quantity' => 6, 'initial_quantity' => 6]);
         $spreadsheet = $this->load($this->actingAs($owner)->get(route('wines.export')));
         $sheet = $spreadsheet->getSheetByName(WineSheet::SHEET);
         $this->assertNotNull($sheet);

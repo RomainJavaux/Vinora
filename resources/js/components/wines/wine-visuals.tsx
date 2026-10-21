@@ -394,9 +394,11 @@ export function WindowRing({
     const value =
         window.status === 'unknown'
             ? 0
-            : window.status === 'young'
-              ? Math.max(0.04, progress)
-              : Math.max(0.04, 1 - progress);
+            : window.status === 'keep'
+              ? 1
+              : window.status === 'young'
+                ? Math.max(0.04, progress)
+                : Math.max(0.04, 1 - progress);
 
     return (
         <span

@@ -55,6 +55,7 @@
     --color-ready: var(--ready);
     --color-soon: var(--soon);
     --color-past: var(--past);
+    --color-keep: var(--keep);
 
     --color-glass: var(--glass);
     --color-glass-strong: var(--glass-strong);
@@ -106,6 +107,7 @@
     --ready: oklch(0.64 0.15 150);
     --soon: oklch(0.77 0.16 70);
     --past: oklch(0.6 0.2 25);
+    --keep: oklch(0.6 0.14 305);
 
     --glass: rgb(255 252 247 / 0.72);
     --glass-strong: rgb(255 252 247 / 0.88);
@@ -171,6 +173,7 @@
     --young: oklch(0.7 0.12 245);
     --ready: oklch(0.72 0.14 150);
     --soon: oklch(0.8 0.15 75);
+    --keep: oklch(0.72 0.13 305);
     --past: oklch(0.67 0.19 25);
 
     --glass: rgb(52 28 32 / 0.62);

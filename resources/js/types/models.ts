@@ -52,7 +52,14 @@ export type MovementTypeValue =
     | 'updated'
     | 'discarded';
 
-export type WindowStatus = 'young' | 'ready' | 'soon' | 'past' | 'unknown';
+export type WindowStatus =
+    | 'young'
+    | 'ready'
+    | 'soon'
+    | 'past'
+    | 'unknown'
+    /** Not to be drunk (gift, souvenir): never suggested. */
+    | 'keep';
 
 export type BottleShape = 'bordeaux' | 'burgundy' | 'flute' | 'champagne';
 
@@ -103,6 +110,8 @@ export type Wine = {
     finishedAt: string | null;
     createdAt: string | null;
     window: DrinkWindowInfo;
+    /** Gift, souvenir or collection bottle: never suggested. */
+    keepsake: boolean;
     compartmentId: number | null;
     location: WineLocation | null;
     createdBy?: { id: number; name: string } | null;
@@ -226,6 +235,16 @@ export type FormatOption = {
     plural: string;
 };
 
+export type GrapeOption = {
+    name: string;
+    color: 'red' | 'white';
+    /** Home region or country. */
+    origin: string;
+    /** Names used elsewhere (Shiraz for Syrah…). */
+    aliases: string[];
+    popular: boolean;
+};
+
 export type CellarTypeOption = {
     value: CellarTypeValue;
     label: string;
@@ -278,7 +297,7 @@ export type Catalog = {
     locations: string[];
     regions: { name: string; country: string; shape: BottleShape }[];
     countries: string[];
-    grapes: string[];
+    grapes: GrapeOption[];
     boughtFrom: string[];
     dishes: DishOption[];
     compartmentSuggestions: string[];

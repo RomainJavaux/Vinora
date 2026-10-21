@@ -52,6 +52,7 @@ final class WineSheet
             ['key' => 'aging', 'label' => 'Potentiel de garde', 'width' => 19, 'import' => true, 'aliases' => ['garde', 'potentiel']],
             ['key' => 'drink_from', 'label' => 'À boire dès', 'width' => 12, 'import' => true, 'aliases' => ['a boire a partir de', 'boire des', 'apogee debut', 'debut apogee', 'drink from']],
             ['key' => 'drink_until', 'label' => 'À boire jusqu’en', 'width' => 15, 'import' => true, 'aliases' => ['a boire avant', 'boire avant', 'jusqu en', 'apogee fin', 'fin apogee', 'drink until']],
+            ['key' => 'keepsake', 'label' => 'Ne pas boire', 'width' => 12, 'import' => true, 'aliases' => ['a garder', 'garder', 'cadeau', 'souvenir', 'collection', 'ne pas ouvrir', 'keepsake']],
             ['key' => 'tags', 'label' => 'Étiquettes', 'width' => 20, 'import' => true, 'aliases' => ['tags', 'mots cles']],
             ['key' => 'description', 'label' => 'Notes', 'width' => 40, 'import' => true, 'aliases' => ['commentaire', 'commentaires', 'remarques', 'description', 'notes perso']],
             ['key' => 'window', 'label' => 'Apogée', 'width' => 22, 'import' => false, 'aliases' => []],
