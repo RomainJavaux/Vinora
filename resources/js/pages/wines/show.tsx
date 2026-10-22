@@ -244,7 +244,7 @@ export default function WineShow({
                             <DropdownMenuContent align="end">
                                 <DropdownMenuItem onSelect={open('label')}>
                                     <QrCode />
-                                    Collerette & QR code
+                                    Étiquette à imprimer
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild>
                                     <Link
@@ -700,7 +700,7 @@ export default function WineShow({
                         onClick={open('label')}
                     >
                         <QrCode />
-                        Collerette à imprimer
+                        Étiquette à imprimer
                     </Button>
                 </aside>
             </div>

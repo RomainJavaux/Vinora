@@ -47,6 +47,7 @@ Route::middleware('auth')->group(function () {
         Route::post('wines/{wine}/restock', [WineStockController::class, 'restock'])->name('wines.restock');
         Route::post('wines/{wine}/move', [WineStockController::class, 'move'])->name('wines.move');
         Route::post('wines/{wine}/discard', [WineStockController::class, 'discard'])->name('wines.discard');
+        Route::get('wines/{wine}/label', [WineController::class, 'label'])->name('wines.label');
 
         Route::get('activity', ActivityController::class)->name('activity');
         Route::get('tastings', TastingController::class)->name('tastings');

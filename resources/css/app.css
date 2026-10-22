@@ -588,18 +588,12 @@
 }
 
 @media print {
-    body * {
-        visibility: hidden;
+    .no-print {
+        display: none !important;
     }
 
-    .print-area,
-    .print-area * {
-        visibility: visible;
-    }
-
-    .print-area {
-        position: absolute;
-        inset: 0 auto auto 0;
+    body {
+        background: white !important;
     }
 }
 

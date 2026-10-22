@@ -163,6 +163,21 @@ class WineController extends Controller
         ]);
     }
 
+    /**
+     * Printable label sized for a label printer (90 × 38 mm detailed, or
+     * 29 × 29 mm QR code).
+     */
+    public function label(Request $request, Wine $wine): Response
+    {
+        $this->authorize('view', $wine);
+        $this->switchTo($request, $wine->household_id);
+
+        return Inertia::render('wines/label', [
+            'wine' => (new WineResource($wine->load('compartment.cellar')))->resolve($request),
+            'format' => $request->query('format') === 'square' ? 'square' : 'detailed',
+        ]);
+    }
+
     public function edit(Request $request, Wine $wine): Response
     {
         $this->authorize('update', $wine);

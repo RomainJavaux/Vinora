@@ -78,6 +78,28 @@ class KeepsakeTest extends TestCase
         $this->assertNotContains($kept->id, Wine::query()->ready()->pluck('id')->all());
     }
 
+    public function test_the_label_page_prints_a_wine_in_both_formats(): void
+    {
+        [$user, , $cellar] = $this->userWithCellar();
+        $wine = $this->wineIn($this->compartment($cellar), ['name' => 'Château Talbot']);
+
+        $this->actingAs($user)
+            ->get(route('wines.label', $wine))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('wines/label')
+                ->where('wine.name', 'Château Talbot')
+                ->where('format', 'detailed'),
+            );
+
+        $this->actingAs($user)
+            ->get(route('wines.label', ['wine' => $wine, 'format' => 'square']))
+            ->assertInertia(fn (Assert $page) => $page->where('format', 'square'));
+
+        [$stranger] = $this->userWithCellar();
+        $this->actingAs($stranger)->get(route('wines.label', $wine))->assertForbidden();
+    }
+
     public function test_the_excel_file_carries_the_choice(): void
     {
         [$user, , $cellar] = $this->userWithCellar();

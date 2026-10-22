@@ -44,7 +44,7 @@ const features = [
     {
         emoji: '📷',
         title: 'Rangée en 15 secondes',
-        text: 'Photo de l’étiquette, suggestions « déjà dans ta cave », millésime en un geste. Et la collerette QR à imprimer.',
+        text: 'Photo de l’étiquette, suggestions « déjà dans ta cave », millésime en un geste. Et l’étiquette QR à imprimer.',
     },
 ];
 

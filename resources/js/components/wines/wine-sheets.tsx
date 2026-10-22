@@ -1,25 +1,22 @@
 import type { RequestPayload } from '@inertiajs/core';
 import { router } from '@inertiajs/react';
 import { Printer } from 'lucide-react';
-import QRCode from 'qrcode';
-import { useEffect, useState } from 'react';
-import AppLogoIcon from '@/components/app-logo-icon';
+import { useLayoutEffect, useState } from 'react';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import { Stepper } from '@/components/ui/stepper';
 import { LocationPicker } from '@/components/wines/location-picker';
-import { BottleArt, WineAvatar } from '@/components/wines/wine-visuals';
 import {
-    findCategory,
-    formatQuantity,
-    unitWord,
-    useCatalog,
-    wineTitle,
-} from '@/lib/catalog';
-import { windowRange } from '@/lib/dates';
-import { cn } from '@/lib/utils';
+    LABEL_FORMATS,
+    PX_PER_MM,
+    WineLabel,
+    useWineQr,
+} from '@/components/wines/print-label';
+import type { LabelFormat } from '@/components/wines/print-label';
+import { WineAvatar } from '@/components/wines/wine-visuals';
+import { formatQuantity, unitWord, useCatalog, wineTitle } from '@/lib/catalog';
 import wines from '@/routes/wines';
 import type { CellarOption, Wine } from '@/types/models';
 
@@ -347,116 +344,101 @@ export function DeleteSheet({ wine, open, onOpenChange }: SheetProps) {
 
 /* Étiquette à imprimer ----------------------------------------------- */
 
+/**
+ * Pick a label model, preview it at real size and open the print page.
+ */
 export function LabelSheet({ wine, open, onOpenChange }: SheetProps) {
-    const catalog = useCatalog();
-    const category = findCategory(catalog, wine.category);
-    const [qr, setQr] = useState<string | null>(null);
+    const [format, setFormat] = useState<LabelFormat>('detailed');
+    const qr = useWineQr(wine);
+    const { width, height } = LABEL_FORMATS[format];
+    const [space, setSpace] = useState<number | null>(null);
+    // The sheet mounts its content after opening: measure once it is there.
+    const [box, setBox] = useState<HTMLDivElement | null>(null);
 
-    useEffect(() => {
-        if (!open) {
+    // On a phone the 90 mm label is wider than the sheet: shrink the preview.
+    useLayoutEffect(() => {
+        const element = box;
+
+        if (!element) {
             return;
         }
 
-        let active = true;
-        void QRCode.toDataURL(
-            window.location.origin + wines.show.url(wine.id),
-            {
-                margin: 0,
-                width: 360,
-                color: { dark: '#2a1418', light: '#ffffff' },
-            },
-        ).then((url) => active && setQr(url));
+        const measure = () => setSpace(element.clientWidth - 32);
+        measure();
 
-        return () => {
-            active = false;
-        };
-    }, [open, wine.id]);
+        const observer = new ResizeObserver(measure);
+        observer.observe(element);
+
+        return () => observer.disconnect();
+    }, [box]);
+
+    const labelWidth = width * PX_PER_MM;
+    const scale = space !== null && space < labelWidth ? space / labelWidth : 1;
 
     return (
         <BottomSheet
             open={open}
             onOpenChange={onOpenChange}
-            title="Collerette & QR code"
-            description="À accrocher au goulot ou au casier : un scan ouvre la fiche du vin."
+            title="Étiquette"
+            description="Le QR code ouvre directement la fiche de ce vin."
             footer={
                 <Button
                     size="lg"
                     className="w-full"
-                    onClick={() => window.print()}
+                    onClick={() =>
+                        window.open(
+                            wines.label.url(wine.id, { query: { format } }),
+                            '_blank',
+                        )
+                    }
                 >
-                    <Printer />
-                    Imprimer
+                    <Printer className="size-5" /> Imprimer {width} × {height}{' '}
+                    mm
                 </Button>
             }
         >
-            <div className="print-area mx-auto w-full max-w-[300px]">
-                <div className="relative overflow-hidden rounded-[22px] border-2 border-dashed border-foreground/20 bg-white p-4 text-[#2a1418]">
-                    <div
-                        className="mx-auto mb-3 size-7 rounded-full border-2 border-[#2a1418]/25"
-                        aria-hidden
-                    />
-                    <div className="flex items-start gap-3">
-                        <BottleArt
-                            category={wine.category}
-                            region={wine.region}
-                            className="h-20 shrink-0"
-                        />
-                        <div className="min-w-0 flex-1">
-                            <p
-                                className="text-[10px] font-bold tracking-wider uppercase"
-                                style={{ color: category.color }}
-                            >
-                                {category.emoji} {category.label}
-                            </p>
-                            <p className="font-display text-lg leading-tight font-extrabold">
-                                {wine.name}
-                            </p>
-                            {wine.producer && (
-                                <p className="text-xs">{wine.producer}</p>
-                            )}
-                            <p className="mt-1 font-display text-2xl font-extrabold">
-                                {wine.vintage ?? 'NM'}
-                            </p>
-                        </div>
-                    </div>
-                    <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                        <dt className="opacity-60">À boire</dt>
-                        <dd className="text-right font-bold">
-                            {windowRange({
-                                from: wine.drinkFrom,
-                                until: wine.drinkUntil,
-                            })}
-                        </dd>
-                        <dt className="opacity-60">Appellation</dt>
-                        <dd className="truncate text-right font-bold">
-                            {wine.appellation ?? wine.region ?? '—'}
-                        </dd>
-                        <dt className="opacity-60">Emplacement</dt>
-                        <dd className="truncate text-right font-bold">
-                            {wine.location?.compartmentName ?? 'À ranger'}
-                        </dd>
-                    </dl>
-                    <div className="mt-3 flex items-end justify-between gap-3">
-                        <span className="flex items-center gap-1 text-[11px] font-bold">
-                            <AppLogoIcon className="size-4" /> vinora
+            <div className="flex justify-center gap-2">
+                {(Object.keys(LABEL_FORMATS) as LabelFormat[]).map((key) => (
+                    <Chip
+                        key={key}
+                        active={key === format}
+                        className="h-9"
+                        onClick={() => setFormat(key)}
+                    >
+                        {LABEL_FORMATS[key].name}
+                        <span className="text-[11px] tabular-nums opacity-70">
+                            {LABEL_FORMATS[key].width}×
+                            {LABEL_FORMATS[key].height}
                         </span>
-                        <div
-                            className={cn(
-                                'size-24 rounded-lg bg-white',
-                                !qr && 'skeleton',
-                            )}
-                        >
-                            {qr && (
-                                <img
-                                    src={qr}
-                                    alt="QR code vers la fiche du vin"
-                                    className="size-full"
-                                />
-                            )}
-                        </div>
-                    </div>
+                    </Chip>
+                ))}
+            </div>
+            <div
+                ref={setBox}
+                className="mt-5 grid min-h-40 place-items-center overflow-hidden rounded-3xl bg-muted p-4"
+            >
+                <div
+                    style={{
+                        width: labelWidth * scale,
+                        height: height * PX_PER_MM * scale,
+                    }}
+                >
+                    <WineLabel
+                        wine={wine}
+                        format={format}
+                        qr={qr}
+                        className="origin-top-left shadow-md"
+                        style={
+                            scale < 1
+                                ? { transform: `scale(${scale})` }
+                                : undefined
+                        }
+                    />
                 </div>
             </div>
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+                {scale < 1 ? 'Aperçu réduit' : 'Aperçu à taille réelle'}
+            </p>
         </BottomSheet>
     );
 }
