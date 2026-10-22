@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     LABEL_FORMATS,
+    SQUARE_MARGIN,
     WineLabel,
     useWineQr,
 } from '@/components/wines/print-label';
@@ -57,7 +58,7 @@ export default function WineLabelPage({
                         display: grid !important; place-items: center;
                     }
                     .wine-label[data-format="square"] > * {
-                        width: calc(min(100vw, 100vh) - 4mm) !important; height: calc(min(100vw, 100vh) - 4mm) !important;
+                        width: calc(min(100vw, 100vh) - ${2 * SQUARE_MARGIN}mm) !important; height: calc(min(100vw, 100vh) - ${2 * SQUARE_MARGIN}mm) !important;
                     }
                 }
             `}</style>

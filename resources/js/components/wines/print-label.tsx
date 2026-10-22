@@ -24,6 +24,13 @@ export const LABEL_FORMATS: Record<
 export const PX_PER_MM = 96 / 25.4;
 
 /**
+ * White border around the square QR code, in millimetres: label printers
+ * cannot print the very edge of a 29 mm label, and the QR code needs a
+ * quiet zone to be scanned.
+ */
+export const SQUARE_MARGIN = 4;
+
+/**
  * Sharp SVG QR code pointing to the wine page.
  */
 export function useWineQr(wine: Wine): string | null {
@@ -102,7 +109,7 @@ export function WineLabel({
                 style={{
                     width: `${width}mm`,
                     height: `${height}mm`,
-                    padding: '2mm',
+                    padding: `${SQUARE_MARGIN}mm`,
                     ...style,
                 }}
             >
