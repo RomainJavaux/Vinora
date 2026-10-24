@@ -11,6 +11,7 @@ use App\Models\Household;
 use App\Models\Wine;
 use App\Services\Inventory;
 use App\Support\CellarQueries;
+use App\Support\KnownValues;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -74,6 +75,7 @@ class WineController extends Controller
             'defaultCompartmentId' => $compartmentId ?? $source['compartmentId'] ?? null,
             'cellars' => CellarQueries::options($household),
             'suggestions' => $this->suggestions($household, $request),
+            'known' => KnownValues::for($household),
         ]);
     }
 
@@ -191,6 +193,7 @@ class WineController extends Controller
             'defaultCompartmentId' => $wine->compartment_id,
             'cellars' => CellarQueries::options($household),
             'suggestions' => $this->suggestions($household, $request),
+            'known' => KnownValues::for($household),
         ]);
     }
 

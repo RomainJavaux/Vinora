@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { useCatalog } from '@/lib/catalog';
 import { normalize } from '@/lib/search';
 import { cn } from '@/lib/utils';
-import type { CategoryValue, GrapeOption } from '@/types/models';
+import type { CategoryValue, GrapeOption, KnownValue } from '@/types/models';
 
 const MAX = 6;
 
@@ -24,7 +24,13 @@ const DOT: Record<GrapeOption['color'], string> = {
     white: '#d8be62',
 };
 
-type Match = { grape: GrapeOption; alias: string | null };
+/** A grape of the list, or one the household typed itself (no colour). */
+type Pickable = Omit<GrapeOption, 'color' | 'origin'> & {
+    color: GrapeOption['color'] | null;
+    origin: string | null;
+};
+
+type Match = { grape: Pickable; alias: string | null };
 
 /**
  * Grape varieties: the most common ones for the wine's colour and region,
@@ -37,12 +43,15 @@ export function GrapePicker({
     category,
     region,
     country,
+    known = [],
 }: {
     value: string[];
     onChange: (value: string[]) => void;
     category: CategoryValue;
     region: string;
     country: string;
+    /** Grapes already used in the household, most used first. */
+    known?: KnownValue[];
 }) {
     const catalog = useCatalog();
     const [query, setQuery] = useState('');
@@ -59,8 +68,29 @@ export function GrapePicker({
         }
     };
 
+    const listed = new Map(
+        catalog.grapes.map((grape) => [normalize(grape.name), grape]),
+    );
+    const own = (name: string): Pickable =>
+        listed.get(normalize(name)) ?? {
+            name,
+            color: null,
+            origin: null,
+            aliases: [],
+            popular: false,
+        };
+    // Grapes typed by hand earlier are searchable too.
+    const custom = known
+        .filter((grape) => !listed.has(normalize(grape.value)))
+        .map((grape) => own(grape.value));
+    const usedHere = known
+        .filter((grape) => !value.includes(grape.value))
+        .slice(0, 8)
+        .map((grape) => own(grape.value));
+    const usedNames = new Set(usedHere.map((grape) => grape.name));
+
     const results: Match[] = search
-        ? catalog.grapes
+        ? [...catalog.grapes, ...custom]
               .map((grape): Match | null => {
                   if (normalize(grape.name).includes(search)) {
                       return { grape, alias: null };
@@ -98,6 +128,7 @@ export function GrapePicker({
         .filter(
             (grape) =>
                 !value.includes(grape.name) &&
+                !usedNames.has(grape.name) &&
                 (!wanted || grape.color === wanted) &&
                 (local(grape) || grape.popular),
         )
@@ -133,11 +164,23 @@ export function GrapePicker({
             icon={
                 <span
                     className="size-2 shrink-0 rounded-full ring-1 ring-black/10"
-                    style={{ background: DOT[grape.color] }}
+                    style={{
+                        background: grape.color
+                            ? DOT[grape.color]
+                            : 'var(--muted-foreground)',
+                    }}
                     aria-hidden
                 />
             }
-            title={`${grape.name} · ${grape.origin}${grape.aliases.length > 0 ? ` · aussi appelé ${grape.aliases.join(', ')}` : ''}`}
+            title={[
+                grape.name,
+                grape.origin,
+                grape.aliases.length > 0
+                    ? `aussi appelé ${grape.aliases.join(', ')}`
+                    : null,
+            ]
+                .filter(Boolean)
+                .join(' · ')}
         >
             {grape.name}
             {alias && <span className="font-normal opacity-70">· {alias}</span>}
@@ -233,6 +276,18 @@ export function GrapePicker({
                 </div>
             ) : (
                 <>
+                    {usedHere.length > 0 && (
+                        <>
+                            <p className="mt-3 mb-2 text-[12px] font-semibold text-muted-foreground">
+                                Déjà dans ta cave
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {usedHere.map((grape) =>
+                                    chip({ grape, alias: null }),
+                                )}
+                            </div>
+                        </>
+                    )}
                     <p className="mt-3 mb-2 text-[12px] font-semibold text-muted-foreground">
                         {hasLocal
                             ? `Souvent dans la région · ${region || country}`

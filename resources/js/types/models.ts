@@ -182,6 +182,26 @@ export type Movement = {
     to: string | null;
 };
 
+/** A value already typed in the household, most used first. */
+export type KnownValue = {
+    value: string;
+    /** Number of wines using it. */
+    count: number;
+    /** Region and country it usually goes with (estates, appellations). */
+    region: string | null;
+    country: string | null;
+};
+
+export type KnownValues = {
+    producers: KnownValue[];
+    appellations: KnownValue[];
+    regions: KnownValue[];
+    countries: KnownValue[];
+    boughtFrom: KnownValue[];
+    tags: KnownValue[];
+    grapes: KnownValue[];
+};
+
 export type WineSuggestion = {
     id: number;
     name: string;

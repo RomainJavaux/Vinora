@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
     Download,
@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Segmented } from '@/components/ui/segmented';
 import { DrinkSheet } from '@/components/wines/drink-sheet';
-import { WineRow } from '@/components/wines/wine-row';
+import { WineRow, unitPrice } from '@/components/wines/wine-row';
 import {
     findCategory,
     findColor,
@@ -42,7 +42,7 @@ type Props = {
     cellars: { id: number; name: string; color: PaletteKey; type: string }[];
 };
 
-type Sort = 'window' | 'vintage' | 'name' | 'recent';
+type Sort = 'window' | 'vintage' | 'name' | 'recent' | 'price';
 
 export default function WinesIndex({ items, finished, cellars }: Props) {
     const catalog = useCatalog();
@@ -51,6 +51,9 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
     const deferred = useDeferredValue(query);
     const [tab, setTab] = useState<'stock' | 'finished'>('stock');
     const [sort, setSort] = useState<Sort>('window');
+    // Most expensive first; a second tap on « Prix » turns the order round.
+    const [cheapFirst, setCheapFirst] = useState(false);
+    const canSeePrices = usePage().props.household?.canSeePrices ?? false;
     const [urgentOnly, setUrgentOnly] = useState(false);
     const [youngOnly, setYoungOnly] = useState(false);
     const [keptOnly, setKeptOnly] = useState(false);
@@ -101,6 +104,20 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
                     return (a.vintage ?? 9999) - (b.vintage ?? 9999);
                 case 'recent':
                     return (b.createdAt ?? '').localeCompare(a.createdAt ?? '');
+                case 'price': {
+                    const priceA = unitPrice(a);
+                    const priceB = unitPrice(b);
+
+                    // Bottles without a price come last, either way.
+                    if (priceA === null || priceB === null) {
+                        return (
+                            Number(priceA === null) - Number(priceB === null) ||
+                            a.name.localeCompare(b.name, 'fr')
+                        );
+                    }
+
+                    return cheapFirst ? priceA - priceB : priceB - priceA;
+                }
                 default:
                     // Bottles kept aside come last: they are not to be drunk.
                     return (
@@ -275,13 +292,34 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
                     <Segmented
                         compact
                         aria-label="Tri"
-                        value={sort}
-                        onChange={setSort}
+                        value={
+                            sort === 'price' && !canSeePrices ? 'window' : sort
+                        }
+                        onChange={(next) => {
+                            if (next === 'price' && sort === 'price') {
+                                setCheapFirst((value) => !value);
+                            }
+
+                            setSort(next);
+                        }}
                         options={[
                             { value: 'window', label: 'Apogée' },
                             { value: 'vintage', label: 'Millésime' },
                             { value: 'name', label: 'A → Z' },
                             { value: 'recent', label: 'Récents' },
+                            ...(canSeePrices
+                                ? [
+                                      {
+                                          value: 'price' as const,
+                                          label:
+                                              sort === 'price'
+                                                  ? cheapFirst
+                                                      ? 'Prix ↑'
+                                                      : 'Prix ↓'
+                                                  : 'Prix',
+                                      },
+                                  ]
+                                : []),
                         ]}
                     />
                 )}
@@ -436,6 +474,7 @@ export default function WinesIndex({ items, finished, cellars }: Props) {
                                     wine={wine}
                                     lots={[wine, ...others]}
                                     index={index}
+                                    showPrice={canSeePrices}
                                     onDrink={() =>
                                         setDrinking([wine, ...others])
                                     }

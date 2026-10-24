@@ -27,6 +27,8 @@ import {
 import type { LabelFields } from '@/components/wines/label-reading';
 import { GrapePicker } from '@/components/wines/grape-picker';
 import { LocationPicker } from '@/components/wines/location-picker';
+import { SuggestInput } from '@/components/wines/suggest-input';
+import type { Suggestion } from '@/components/wines/suggest-input';
 import { SplitPlaces } from '@/components/wines/split-places';
 import type { Placement } from '@/components/wines/split-places';
 import { BottleArt, WineHero } from '@/components/wines/wine-visuals';
@@ -49,6 +51,8 @@ import type {
     CategoryValue,
     CellarOption,
     FormatValue,
+    KnownValue,
+    KnownValues,
     Wine,
     WineSuggestion,
 } from '@/types/models';
@@ -59,7 +63,33 @@ type Props = {
     defaultCompartmentId: number | null;
     cellars: CellarOption[];
     suggestions: WineSuggestion[];
+    /** What the household already typed, to suggest it again. */
+    known: KnownValues;
 };
+
+const winesCount = (count: number) => `${count} vin${count > 1 ? 's' : ''}`;
+
+/**
+ * Values of the household first (most used first), then the usual ones of
+ * the catalog that were never used.
+ */
+function suggestionsFrom(
+    known: KnownValue[],
+    usual: { value: string; hint?: string | null }[] = [],
+    withPlace = false,
+): Suggestion[] {
+    const seen = new Set(known.map((item) => normalize(item.value)));
+
+    return [
+        ...known.map((item) => ({
+            value: item.value,
+            hint: [withPlace ? item.region : null, winesCount(item.count)]
+                .filter(Boolean)
+                .join(' · '),
+        })),
+        ...usual.filter((item) => !seen.has(normalize(item.value))),
+    ];
+}
 
 type FormData = {
     name: string;
@@ -102,6 +132,7 @@ export default function WineForm({
     defaultCompartmentId,
     cellars,
     suggestions,
+    known,
 }: Props) {
     const catalog = useCatalog();
     const editing = wine !== null;
@@ -383,6 +414,20 @@ export default function WineForm({
 
     const regionCountry = (name: string) =>
         catalog.regions.find((region) => region.name === name)?.country;
+
+    // A known estate or appellation brings its region and country along,
+    // unless they were already chosen.
+    const fillPlace = (list: KnownValue[], value: string) => {
+        const place = list.find((item) => item.value === value);
+
+        if (place?.region && data.region.trim() === '') {
+            setData((current) => ({
+                ...current,
+                region: place.region ?? current.region,
+                country: place.country ?? current.country,
+            }));
+        }
+    };
     const errorCount = Object.keys(errors).length;
     const submitLabel = editing ? 'Enregistrer' : 'Ranger en cave';
 
@@ -448,8 +493,10 @@ export default function WineForm({
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-10">
                 <div className="min-w-0 space-y-8">
                     {/* 1. Photo et nom */}
-                    <section className="surface overflow-hidden">
-                        <div className="relative">
+                    {/* Only the photo is clipped: the suggestions of the fields below
+                        may hang over the edge of the card. */}
+                    <section className="surface">
+                        <div className="relative overflow-hidden rounded-t-[inherit]">
                             {preview ? (
                                 <div className="relative aspect-[16/10] w-full overflow-hidden">
                                     <img
@@ -547,11 +594,18 @@ export default function WineForm({
                                 aria-label="Nom du vin"
                             />
                             <InputError message={errors.name} />
-                            <Input
+                            <SuggestInput
                                 value={data.producer}
-                                onChange={(event) =>
-                                    setData('producer', event.target.value)
+                                onChange={(value) => setData('producer', value)}
+                                suggestions={suggestionsFrom(
+                                    known.producers,
+                                    [],
+                                    true,
+                                )}
+                                onPick={(suggestion) =>
+                                    fillPlace(known.producers, suggestion.value)
                                 }
+                                title="Tes domaines"
                                 placeholder="Domaine, château ou maison (facultatif)"
                                 maxLength={120}
                                 aria-label="Domaine"
@@ -738,11 +792,23 @@ export default function WineForm({
                     {/* 4. Origine */}
                     <FormSection title="D’où vient-il ?" optional>
                         <div className="space-y-3">
-                            <Input
+                            <SuggestInput
                                 value={data.appellation}
-                                onChange={(event) =>
-                                    setData('appellation', event.target.value)
+                                onChange={(value) =>
+                                    setData('appellation', value)
                                 }
+                                suggestions={suggestionsFrom(
+                                    known.appellations,
+                                    [],
+                                    true,
+                                )}
+                                onPick={(suggestion) =>
+                                    fillPlace(
+                                        known.appellations,
+                                        suggestion.value,
+                                    )
+                                }
+                                title="Tes appellations"
                                 placeholder="Appellation : Pauillac, Chablis 1er Cru…"
                                 maxLength={120}
                                 aria-label="Appellation"
@@ -776,30 +842,58 @@ export default function WineForm({
                                 ))}
                             </div>
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <Input
+                                <SuggestInput
                                     value={data.region}
-                                    onChange={(event) =>
-                                        setData('region', event.target.value)
+                                    onChange={(value) =>
+                                        setData('region', value)
                                     }
+                                    suggestions={suggestionsFrom(
+                                        known.regions.map((region) => ({
+                                            ...region,
+                                            region: region.country,
+                                        })),
+                                        catalog.regions.map((region) => ({
+                                            value: region.name,
+                                            hint: region.country,
+                                        })),
+                                        true,
+                                    )}
+                                    onPick={(suggestion) =>
+                                        setData((current) => ({
+                                            ...current,
+                                            country:
+                                                known.regions.find(
+                                                    (region) =>
+                                                        region.value ===
+                                                        suggestion.value,
+                                                )?.country ??
+                                                regionCountry(
+                                                    suggestion.value,
+                                                ) ??
+                                                current.country,
+                                        }))
+                                    }
+                                    title="Tes régions"
                                     placeholder="Région"
                                     maxLength={60}
                                     aria-label="Région"
                                 />
-                                <Input
+                                <SuggestInput
                                     value={data.country}
-                                    onChange={(event) =>
-                                        setData('country', event.target.value)
+                                    onChange={(value) =>
+                                        setData('country', value)
                                     }
+                                    suggestions={suggestionsFrom(
+                                        known.countries,
+                                        catalog.countries.map((country) => ({
+                                            value: country,
+                                        })),
+                                    )}
+                                    title="Tes pays"
                                     placeholder="Pays"
                                     maxLength={60}
-                                    list="vinora-countries"
                                     aria-label="Pays"
                                 />
-                                <datalist id="vinora-countries">
-                                    {catalog.countries.map((country) => (
-                                        <option key={country} value={country} />
-                                    ))}
-                                </datalist>
                             </div>
                             <GrapePicker
                                 value={data.grapes}
@@ -807,6 +901,7 @@ export default function WineForm({
                                 category={data.category}
                                 region={data.region}
                                 country={data.country}
+                                known={known.grapes}
                             />
                             <InputError message={errors.grapes} />
                         </div>
@@ -1146,11 +1241,18 @@ export default function WineForm({
                                 />
                                 <InputError message={errors.purchased_on} />
                             </label>
-                            <Input
+                            <SuggestInput
                                 value={data.bought_from}
-                                onChange={(event) =>
-                                    setData('bought_from', event.target.value)
+                                onChange={(value) =>
+                                    setData('bought_from', value)
                                 }
+                                suggestions={suggestionsFrom(
+                                    known.boughtFrom,
+                                    catalog.boughtFrom.map((place) => ({
+                                        value: place,
+                                    })),
+                                )}
+                                title="Tes lieux d’achat"
                                 placeholder="Chez qui ? Caviste, domaine…"
                                 maxLength={80}
                                 aria-label="Lieu d’achat"
@@ -1210,6 +1312,7 @@ export default function WineForm({
                             <TagInput
                                 value={data.tags}
                                 onChange={(tags) => setData('tags', tags)}
+                                known={known.tags}
                             />
                             <InputError message={errors.tags} />
                         </div>
@@ -1392,14 +1495,16 @@ function MoneyInput({
 function TagInput({
     value,
     onChange,
+    known,
 }: {
     value: string[];
     onChange: (value: string[]) => void;
+    known: KnownValue[];
 }) {
     const [draft, setDraft] = useState('');
 
-    const add = () => {
-        const tag = draft.trim().replace(/^#/, '').toLowerCase();
+    const add = (typed = draft) => {
+        const tag = typed.trim().replace(/^#/, '').toLowerCase();
 
         if (tag && !value.includes(tag) && value.length < 8) {
             onChange([...value, tag]);
@@ -1428,16 +1533,21 @@ function TagInput({
                     ))}
                 </div>
             )}
-            <Input
+            <SuggestInput
                 value={draft}
-                onChange={(event) => setDraft(event.target.value)}
+                onChange={setDraft}
+                suggestions={suggestionsFrom(
+                    known.filter((tag) => !value.includes(tag.value)),
+                )}
+                onPick={(suggestion) => add(suggestion.value)}
+                title="Tes étiquettes"
                 onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ',') {
                         event.preventDefault();
                         add();
                     }
                 }}
-                onBlur={add}
+                onBlur={() => add()}
                 placeholder="garde, cadeau, fête… (Entrée pour ajouter)"
                 maxLength={30}
                 disabled={value.length >= 8}

@@ -8,7 +8,7 @@ import {
     WindowBadge,
     WineAvatar,
 } from '@/components/wines/wine-visuals';
-import { formatQuantity, useCatalog } from '@/lib/catalog';
+import { formatPrice, formatQuantity, useCatalog } from '@/lib/catalog';
 import { cn } from '@/lib/utils';
 import wines from '@/routes/wines';
 import type { Wine } from '@/types/models';
@@ -24,8 +24,15 @@ type Props = {
     action?: ReactNode;
     muted?: boolean;
     subtitle?: ReactNode;
+    /** Price of one bottle (purchase price, or estimated value). */
+    showPrice?: boolean;
     className?: string;
 };
+
+/** What one bottle cost, or else what it is worth. */
+export function unitPrice(wine: Wine): number | null {
+    return wine.priceCents ?? wine.valueCents ?? null;
+}
 
 /**
  * A wine in a list. The name is a stretched link over the whole card; the
@@ -41,6 +48,7 @@ export function WineRow({
     action,
     muted = false,
     subtitle,
+    showPrice = false,
     className,
 }: Props) {
     const catalog = useCatalog();
@@ -120,6 +128,19 @@ export function WineRow({
                             </span>
                             <WindowBadge window={wine.window} />
                             <RatingBadge rating={wine.rating} />
+                            {showPrice && unitPrice(wine) !== null && (
+                                <span
+                                    className="inline-flex h-6 items-center rounded-full bg-muted px-2.5 text-[11.5px] font-semibold tabular-nums"
+                                    title={
+                                        wine.priceCents !== null
+                                            ? 'Prix d’achat par bouteille'
+                                            : 'Valeur estimée par bouteille'
+                                    }
+                                >
+                                    {wine.priceCents === null && '≈ '}
+                                    {formatPrice(unitPrice(wine))}
+                                </span>
+                            )}
                         </>
                     )}
                 </div>
