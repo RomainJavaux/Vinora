@@ -1,7 +1,14 @@
 import { Link, useHttp } from '@inertiajs/react';
-import { ScanText, Sparkles, Undo2 } from 'lucide-react';
+import {
+    AlertTriangle,
+    Check,
+    ChevronRight,
+    ScanText,
+    Sparkles,
+    Undo2,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { edit as editLabelReader } from '@/routes/label-reader';
 import wines from '@/routes/wines';
 import type { AgingValue, CategoryValue, FormatValue } from '@/types/models';
@@ -122,59 +129,124 @@ export function LabelScanOverlay({ active }: { active: boolean }) {
     );
 }
 
-/** What was filled from the label, with a way back. */
+/** A value read on the label, as applied to the form. */
+export type LabelReadRow = { key: string; label: string; value: string };
+
+/** An important field the label did not give: what the form keeps instead. */
+export type LabelMissing = { key: string; label: string; note: string };
+
+/** What was read on the label, with its values, and what is still missing. */
 export function LabelReadBanner({
-    filled,
-    grapesInferred,
+    rows,
+    missing,
     onUndo,
+    onFix,
+    onConfirm,
 }: {
-    filled: string[];
-    grapesInferred: boolean;
+    rows: LabelReadRow[];
+    missing: LabelMissing[];
     onUndo: () => void;
+    /** Takes the user to the field to complete. */
+    onFix: (key: string) => void;
+    /** The value kept instead is the right one: no longer flagged. */
+    onConfirm: (key: string) => void;
 }) {
     return (
         <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="flex gap-3 rounded-2xl bg-primary/8 p-3.5 text-[14px]"
+            className="rounded-2xl bg-primary/8 p-3.5 text-[14px]"
             role="status"
         >
-            <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
-            <div className="min-w-0 flex-1">
-                <p className="font-semibold">
-                    {filled.length > 0
+            <div className="flex items-start gap-3">
+                <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
+                <p className="min-w-0 flex-1 font-semibold">
+                    {rows.length > 0
                         ? 'Lu sur l’étiquette : vérifie avant de ranger.'
                         : 'Rien de lisible sur cette étiquette.'}
                 </p>
-                {filled.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                        {filled.map((label) => (
-                            <span
-                                key={label}
-                                className="rounded-full bg-background/80 px-2 py-0.5 text-[12px] font-semibold"
-                            >
-                                {label}
-                            </span>
-                        ))}
-                    </div>
-                )}
-                {grapesInferred && (
-                    <p className="mt-1.5 text-[13px] text-muted-foreground">
-                        Cépages déduits de l’appellation.
-                    </p>
+                {rows.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={onUndo}
+                        className="-my-1 flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                    >
+                        <Undo2 className="size-3.5" />
+                        Annuler
+                    </button>
                 )}
             </div>
-            {filled.length > 0 && (
-                <button
-                    type="button"
-                    onClick={onUndo}
-                    className="flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-                >
-                    <Undo2 className="size-3.5" />
-                    Annuler
-                </button>
+
+            {rows.length > 0 && (
+                <dl className="mt-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pl-7">
+                    {rows.map((row) => (
+                        <Fragment key={row.key}>
+                            <dt className="text-muted-foreground">
+                                {row.label}
+                            </dt>
+                            <dd className="min-w-0 font-semibold break-words">
+                                {row.value}
+                            </dd>
+                        </Fragment>
+                    ))}
+                </dl>
             )}
+
+            <AnimatePresence initial={false}>
+                {missing.length > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                    >
+                        <div className="mt-3 ml-7 rounded-xl bg-[color-mix(in_oklab,var(--soon)_16%,transparent)] p-2.5">
+                            <p className="flex items-center gap-1.5 px-1 text-[13px] font-bold">
+                                <AlertTriangle
+                                    className="size-3.5 shrink-0"
+                                    style={{ color: 'var(--soon)' }}
+                                />
+                                Pas trouvé sur l’étiquette, à vérifier :
+                            </p>
+                            <ul className="mt-1 space-y-0.5">
+                                {missing.map((item) => (
+                                    <li
+                                        key={item.key}
+                                        className="flex items-center gap-1"
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => onFix(item.key)}
+                                            className="flex min-h-9 min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-1.5 py-1 text-left text-[13px] transition-colors hover:bg-background/60"
+                                        >
+                                            <span className="min-w-0">
+                                                <b className="font-semibold">
+                                                    {item.label}
+                                                </b>
+                                                <span className="text-muted-foreground">
+                                                    {' '}
+                                                    · {item.note}
+                                                </span>
+                                            </span>
+                                            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => onConfirm(item.key)}
+                                            aria-label={`${item.label} : c’est bon`}
+                                            className="flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-[12.5px] font-semibold text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
+                                        >
+                                            <Check className="size-3.5" />
+                                            C’est bon
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 }

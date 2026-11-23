@@ -15,6 +15,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * The one place where bottles enter, move and leave the cellars. Every
@@ -22,6 +23,12 @@ use Illuminate\Support\Facades\DB;
  */
 class Inventory
 {
+    /** What new bottles can teach a lot that does not know it yet. */
+    private const JOINABLE = [
+        'appellation', 'region', 'country', 'grapes', 'alcohol', 'aging', 'price_cents', 'value_cents',
+        'purchased_on', 'bought_from', 'description', 'tags',
+    ];
+
     public function __construct(private readonly PhotoStore $photos) {}
 
     /**
@@ -118,6 +125,82 @@ class Inventory
 
             return $wine;
         });
+    }
+
+    /**
+     * New bottles of a wine already in stock join that lot, all at once: the
+     * quantity, a label photo when the lot had none (the one just taken, or
+     * a copy of another lot's), and whatever the lot did not know yet
+     * (appellation, price, drinking window…) from the details given. A lot
+     * without a place (its cellar was deleted) gets the compartment given.
+     *
+     * @param  array<string, mixed>  $details
+     */
+    public function join(Wine $lot, User $user, int $quantity, array $details = [], UploadedFile|Wine|null $photo = null, ?int $compartmentId = null): Wine
+    {
+        // Stored first, like add(): a photo that cannot be read must not
+        // leave the bottles counted (a retry would count them twice).
+        $photoPath = $lot->photo_path !== null ? null : match (true) {
+            $photo instanceof UploadedFile => $this->photos->store($photo, $lot->household_id),
+            $photo instanceof Wine => $this->photos->duplicate($photo->photo_path, $lot->household_id),
+            default => null,
+        };
+
+        try {
+            return DB::transaction(function () use ($lot, $user, $quantity, $details, $photoPath, $compartmentId) {
+                $lot = $this->restock($lot, $user, $quantity, $lot->compartment_id === null ? $compartmentId : null);
+
+                $fill = [];
+
+                foreach (self::JOINABLE as $field) {
+                    if (blank($lot->getAttribute($field)) && ! blank($details[$field] ?? null)) {
+                        $fill[$field] = $details[$field];
+                    }
+                }
+
+                // The drinking window is taken whole, and only by a lot that
+                // has none: given with the bottles, or worked out from the
+                // ageing potential, like for a new lot.
+                if ($lot->drink_from === null && $lot->drink_until === null) {
+                    $window = $this->withWindow([
+                        'category' => $lot->category,
+                        'vintage' => $lot->vintage,
+                        'aging' => $fill['aging'] ?? $lot->aging,
+                        'purchased_on' => $lot->purchased_on ?? $fill['purchased_on'] ?? null,
+                        'drink_from' => $details['drink_from'] ?? null,
+                        'drink_until' => $details['drink_until'] ?? null,
+                    ]);
+
+                    if ($window['drink_from'] !== null || $window['drink_until'] !== null) {
+                        $fill['drink_from'] = $window['drink_from'];
+                        $fill['drink_until'] = $window['drink_until'];
+                    }
+                }
+
+                if ($photoPath !== null) {
+                    $fill['photo_path'] = $photoPath;
+                }
+
+                if ($fill !== []) {
+                    $lot->forceFill($fill)->save();
+                }
+
+                return $lot;
+            });
+        } catch (Throwable $exception) {
+            $this->photos->delete($photoPath);
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * The lot of the same wine (same cuvée, estate, vintage, format, colour
+     * and « Ne pas boire » choice) stored in the given compartment, if any.
+     */
+    public function twinIn(Wine $wine, int $compartmentId): ?Wine
+    {
+        return $this->findTwin($wine, $compartmentId);
     }
 
     /**
@@ -290,14 +373,16 @@ class Inventory
     }
 
     /**
-     * An identical lot (same wine, vintage and format) stored in the given
-     * compartment.
+     * An identical lot (same wine, vintage and format, and the same « Ne pas
+     * boire » choice: a gift never joins bottles meant to be drunk) stored in
+     * the given compartment.
      */
     private function findTwin(Wine $wine, int $compartmentId): ?Wine
     {
         return Wine::query()
             ->where('household_id', $wine->household_id)
             ->where('compartment_id', $compartmentId)
+            ->where('keepsake', $wine->keepsake)
             ->whereKeyNot($wine->id)
             ->inStock()
             ->get()

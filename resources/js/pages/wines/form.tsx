@@ -24,7 +24,15 @@ import {
     LabelScanOverlay,
     useLabelReader,
 } from '@/components/wines/label-reading';
-import type { LabelFields } from '@/components/wines/label-reading';
+import type {
+    LabelFields,
+    LabelMissing,
+    LabelReadRow,
+} from '@/components/wines/label-reading';
+import {
+    DuplicateSheet,
+    sameWineLots,
+} from '@/components/wines/duplicate-sheet';
 import { GrapePicker } from '@/components/wines/grape-picker';
 import { LocationPicker } from '@/components/wines/location-picker';
 import { SuggestInput } from '@/components/wines/suggest-input';
@@ -35,6 +43,7 @@ import { BottleArt, WineHero } from '@/components/wines/wine-visuals';
 import {
     findAging,
     findCategory,
+    findFormat,
     formatQuantity,
     unitWord,
     useCatalog,
@@ -53,6 +62,7 @@ import type {
     FormatValue,
     KnownValue,
     KnownValues,
+    StockLot,
     Wine,
     WineSuggestion,
 } from '@/types/models';
@@ -65,6 +75,8 @@ type Props = {
     suggestions: WineSuggestion[];
     /** What the household already typed, to suggest it again. */
     known: KnownValues;
+    /** Lots in stock (new bottles only), to spot the same wine. */
+    stock?: StockLot[];
 };
 
 const winesCount = (count: number) => `${count} vin${count > 1 ? 's' : ''}`;
@@ -119,6 +131,8 @@ type FormData = {
     compartment_id: number | null;
     from: number | null;
     placements?: { compartment_id: number; quantity: number }[];
+    /** Lot in stock the new bottles join (same wine). */
+    merge_into?: number;
 };
 
 const euros = (cents: number | null) =>
@@ -133,6 +147,7 @@ export default function WineForm({
     cellars,
     suggestions,
     known,
+    stock = [],
 }: Props) {
     const catalog = useCatalog();
     const editing = wine !== null;
@@ -181,36 +196,63 @@ export default function WineForm({
     const isDesktop = useIsDesktop();
     // Bottles stored in other places when the main one is too small.
     const [placements, setPlacements] = useState<Placement[]>([]);
-    const elsewhere = placements.reduce(
+    // A place that became the main one is no longer a split, nor is any
+    // place once a single bottle is left: hidden, and never sent.
+    const split =
+        data.quantity < 2
+            ? []
+            : placements.filter(
+                  (placement) =>
+                      placement.compartmentId !== data.compartment_id,
+              );
+    const elsewhere = split.reduce(
         (sum, placement) => sum + placement.quantity,
         0,
     );
     // « Lire l’étiquette », only for users who saved their own key.
     const canReadLabels = usePage().props.auth.user?.canReadLabels ?? false;
     const [labelRead, setLabelRead] = useState<{
-        filled: string[];
-        grapesInferred: boolean;
+        rows: LabelReadRow[];
+        missing: LabelMissing[];
+        /** Form values before the scan, to undo it. */
         previous: Partial<FormData>;
+        /** Values of the missing fields right after the scan: once the
+         * user changes one, it is no longer flagged. */
+        kept: Partial<FormData>;
     } | null>(null);
 
     const applyLabel = (fields: LabelFields) => {
         const patch: Partial<FormData> = {};
-        const filled: string[] = [];
+        const rows: LabelReadRow[] = [];
         const set = <K extends keyof FormData>(
             key: K,
             value: FormData[K] | null,
             label: string,
+            shown?: string,
         ) => {
             if (value !== null && value !== '') {
                 patch[key] = value;
-                filled.push(label);
+                rows.push({
+                    key,
+                    label,
+                    value:
+                        shown ??
+                        (typeof value === 'string' || typeof value === 'number'
+                            ? String(value)
+                            : ''),
+                });
             }
         };
 
         set('name', fields.name, 'Nom');
         set('producer', fields.producer, 'Domaine');
         set('vintage', fields.vintage, 'Millésime');
-        set('category', fields.category, 'Couleur');
+        set(
+            'category',
+            fields.category,
+            'Couleur',
+            findCategory(catalog, fields.category).label,
+        );
         set('appellation', fields.appellation, 'Appellation');
         set('region', fields.region, 'Région');
         set('country', fields.country, 'Pays');
@@ -218,6 +260,8 @@ export default function WineForm({
             'grapes',
             fields.grapes.length > 0 ? fields.grapes : null,
             'Cépages',
+            fields.grapes.join(', ') +
+                (fields.grapesInferred ? ' (déduits de l’appellation)' : ''),
         );
         set(
             'alcohol',
@@ -225,9 +269,72 @@ export default function WineForm({
                 ? String(fields.alcohol).replace('.', ',')
                 : null,
             'Degré',
+            fields.alcohol !== null
+                ? `${String(fields.alcohol).replace('.', ',')} %`
+                : undefined,
         );
-        set('format', fields.format, 'Format');
-        set('aging', fields.aging, 'Garde');
+        set(
+            'format',
+            fields.format,
+            'Contenance',
+            fields.format
+                ? `${findFormat(catalog, fields.format).label} · ${findFormat(catalog, fields.format).volume}`
+                : undefined,
+        );
+        set(
+            'aging',
+            fields.aging,
+            'Garde',
+            findAging(catalog, fields.aging)?.label,
+        );
+
+        // What the label did not give, and what the form keeps instead.
+        const after = { ...data, ...patch };
+        const missing: LabelMissing[] = [];
+
+        if (!fields.name) {
+            missing.push({
+                key: 'name',
+                label: 'Nom',
+                note: after.name ? `« ${after.name} » gardé` : 'à écrire',
+            });
+        }
+
+        if (fields.vintage === null) {
+            missing.push({
+                key: 'vintage',
+                label: 'Millésime',
+                note: after.vintage
+                    ? `${after.vintage} par défaut`
+                    : 'non millésimé par défaut',
+            });
+        }
+
+        if (!fields.category) {
+            missing.push({
+                key: 'category',
+                label: 'Couleur',
+                note: `${findCategory(catalog, after.category).label.toLowerCase()} par défaut`,
+            });
+        }
+
+        if (!fields.appellation && !fields.region) {
+            missing.push({
+                key: 'appellation',
+                label: 'Appellation',
+                note: after.appellation
+                    ? `« ${after.appellation} » gardée`
+                    : 'à compléter',
+            });
+        }
+
+        if (!fields.format) {
+            missing.push({
+                key: 'format',
+                label: 'Contenance',
+                note: `${findFormat(catalog, after.format).volume} par défaut`,
+            });
+        }
 
         const previous = Object.fromEntries(
             Object.keys(patch).map((key) => [key, data[key as keyof FormData]]),
@@ -235,9 +342,17 @@ export default function WineForm({
 
         setData((current) => ({ ...current, ...patch }));
         setLabelRead({
-            filled,
-            grapesInferred: fields.grapesInferred && patch.grapes !== undefined,
+            rows,
+            missing,
             previous,
+            kept: {
+                name: after.name,
+                vintage: after.vintage,
+                category: after.category,
+                appellation: after.appellation,
+                region: after.region,
+                format: after.format,
+            },
         });
 
         if (fields.vintage === null && fields.name !== null) {
@@ -246,6 +361,59 @@ export default function WineForm({
     };
 
     const labelReader = useLabelReader(applyLabel);
+
+    // Missing fields the user has not changed since the scan.
+    const stillMissing = (labelRead?.missing ?? []).filter((item) => {
+        const kept = labelRead?.kept ?? {};
+
+        return item.key === 'appellation'
+            ? data.appellation === kept.appellation &&
+                  data.region === kept.region
+            : data[item.key as keyof FormData] ===
+                  kept[item.key as keyof FormData];
+    });
+
+    // Takes the user to a field the label did not give, keyboard focus
+    // included (the chosen chip of a choice, or its first control).
+    const focusField = (key: string) => {
+        const element = document.getElementById(`wine-${key}`);
+
+        element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // In this order: a selector list would return the first match in
+        // the page, not the chosen chip.
+        const control =
+            element instanceof HTMLInputElement
+                ? element
+                : [
+                      '[aria-pressed="true"]',
+                      '[aria-checked="true"]',
+                      'input, button, [role="button"][tabindex="0"]',
+                  ]
+                      .flatMap((selector) => [
+                          ...(element?.querySelectorAll<HTMLElement>(
+                              selector,
+                          ) ?? []),
+                      ])
+                      // Not the close button of a hint shown above the field.
+                      .find((control) => !control.closest('[role="note"]'));
+
+        control?.focus({ preventScroll: true });
+    };
+
+    // « C’est bon » : the value kept for a missing field is the right one.
+    const confirmMissing = (key: string) =>
+        setLabelRead(
+            (current) =>
+                current && {
+                    ...current,
+                    missing: current.missing.filter((item) => item.key !== key),
+                },
+        );
+
+    // The same wine already in stock (new bottles only).
+    const twins = editing ? [] : sameWineLots(stock, data);
+    const [duplicateOpen, setDuplicateOpen] = useState(false);
 
     const undoLabel = () => {
         if (labelRead) {
@@ -377,32 +545,52 @@ export default function WineForm({
     };
 
     const submit = () => {
-        form.transform((current) => ({
-            ...current,
-            drink_from: windowValue.from,
-            drink_until: windowValue.until,
-            aging: manualWindow ? current.aging : aging,
-            ...(editing
-                ? {}
-                : {
-                      placements: placements
-                          .filter(
-                              (placement) =>
-                                  placement.compartmentId !==
-                                  current.compartment_id,
-                          )
-                          .map((placement) => ({
-                              compartment_id: placement.compartmentId,
-                              quantity: placement.quantity,
-                          })),
-                  }),
-            ...(editing ? { _method: 'put' } : {}),
-        }));
+        if (twins.length > 0) {
+            setDuplicateOpen(true);
+
+            return;
+        }
+
+        send(null);
+    };
+
+    // « Avec les autres » : the bottles join that lot, in its place (or the
+    // one chosen when it has lost its own); a split for other places stays.
+    const send = (mergeInto: StockLot | null) => {
+        form.transform((current) => {
+            const target = mergeInto?.compartmentId ?? current.compartment_id;
+
+            return {
+                ...current,
+                drink_from: windowValue.from,
+                drink_until: windowValue.until,
+                aging: manualWindow ? current.aging : aging,
+                ...(editing
+                    ? { _method: 'put' }
+                    : {
+                          compartment_id: target,
+                          placements: split
+                              .filter(
+                                  (placement) =>
+                                      placement.compartmentId !== target,
+                              )
+                              .map((placement) => ({
+                                  compartment_id: placement.compartmentId,
+                                  quantity: placement.quantity,
+                              })),
+                      }),
+                ...(mergeInto ? { merge_into: mergeInto.id } : {}),
+            };
+        });
 
         const options = {
             forceFormData: true,
             preserveScroll: false,
-            onError: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
+            onSuccess: () => setDuplicateOpen(false),
+            onError: () => {
+                setDuplicateOpen(false);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            },
         };
 
         if (wine) {
@@ -432,7 +620,11 @@ export default function WineForm({
     const submitLabel = editing ? 'Enregistrer' : 'Ranger en cave';
 
     const placeSection = (
-        <FormSection title="Où la ranger ?" error={errors.compartment_id}>
+        <FormSection
+            id="wine-place"
+            title="Où la ranger ?"
+            error={errors.compartment_id ?? errors.merge_into}
+        >
             <LocationPicker
                 cellars={cellars}
                 value={data.compartment_id}
@@ -448,10 +640,7 @@ export default function WineForm({
                     cellars={cellars}
                     mainId={data.compartment_id}
                     quantity={data.quantity}
-                    placements={placements.filter(
-                        (placement) =>
-                            placement.compartmentId !== data.compartment_id,
-                    )}
+                    placements={split}
                     onChange={setPlacements}
                     error={errors.placements}
                 />
@@ -573,11 +762,11 @@ export default function WineForm({
                             <AnimatePresence>
                                 {labelRead && (
                                     <LabelReadBanner
-                                        filled={labelRead.filled}
-                                        grapesInferred={
-                                            labelRead.grapesInferred
-                                        }
+                                        rows={labelRead.rows}
+                                        missing={stillMissing}
                                         onUndo={undoLabel}
+                                        onFix={focusField}
+                                        onConfirm={confirmMissing}
                                     />
                                 )}
                             </AnimatePresence>
@@ -587,6 +776,7 @@ export default function WineForm({
                                 onChange={(event) =>
                                     setData('name', event.target.value)
                                 }
+                                id="wine-name"
                                 placeholder="Château Talbot, Morgon Côte du Py…"
                                 className="h-14 font-display text-xl font-bold"
                                 autoFocus={!editing && !source}
@@ -610,6 +800,47 @@ export default function WineForm({
                                 maxLength={120}
                                 aria-label="Domaine"
                             />
+
+                            <AnimatePresence initial={false}>
+                                {twins.length > 0 && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="overflow-hidden"
+                                        role="status"
+                                    >
+                                        <div className="flex gap-2.5 rounded-2xl bg-[color-mix(in_oklab,var(--ready)_13%,transparent)] p-3 text-[14px]">
+                                            <span aria-hidden>🍷</span>
+                                            <div className="min-w-0">
+                                                <p className="font-semibold">
+                                                    Déjà dans ta cave :{' '}
+                                                    {formatQuantity(
+                                                        catalog,
+                                                        twins.reduce(
+                                                            (sum, lot) =>
+                                                                sum +
+                                                                lot.quantity,
+                                                            0,
+                                                        ),
+                                                        data.format,
+                                                    )}
+                                                </p>
+                                                <p className="text-[13px] text-muted-foreground">
+                                                    {twins
+                                                        .map(
+                                                            (lot) =>
+                                                                `${lot.quantity} · ${lot.place ?? 'sans emplacement'}`,
+                                                        )
+                                                        .join(' — ')}
+                                                    . En rangeant, tu pourras
+                                                    les mettre ensemble.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
 
                             {!editing && filteredSuggestions.length > 0 && (
                                 <div className="pt-1">
@@ -652,6 +883,7 @@ export default function WineForm({
 
                     {/* 2. Couleur */}
                     <FormSection
+                        id="wine-category"
                         title="Quelle couleur ?"
                         error={errors.category}
                     >
@@ -705,7 +937,7 @@ export default function WineForm({
                     </FormSection>
 
                     {/* 3. Millésime */}
-                    <div ref={vintageRef}>
+                    <div ref={vintageRef} id="wine-vintage">
                         <FormSection
                             title="Le millésime"
                             error={errors.vintage}
@@ -716,6 +948,7 @@ export default function WineForm({
                                         initial={{ opacity: 0, y: -6 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0 }}
+                                        role="note"
                                         className="mb-3 flex items-center gap-2 rounded-2xl bg-warm/20 px-3 py-2 text-sm font-semibold"
                                     >
                                         ✨ {hint}
@@ -808,6 +1041,7 @@ export default function WineForm({
                                         suggestion.value,
                                     )
                                 }
+                                id="wine-appellation"
                                 title="Tes appellations"
                                 placeholder="Appellation : Pauillac, Chablis 1er Cru…"
                                 maxLength={120}
@@ -944,7 +1178,10 @@ export default function WineForm({
                                     </Chip>
                                 ))}
                             </div>
-                            <div className="border-t border-hairline pt-4">
+                            <div
+                                id="wine-format"
+                                className="border-t border-hairline pt-4"
+                            >
                                 <p className="mb-2 text-sm font-semibold">
                                     Format
                                 </p>
@@ -1346,6 +1583,31 @@ export default function WineForm({
                 </aside>
             </div>
 
+            <DuplicateSheet
+                open={duplicateOpen}
+                onOpenChange={setDuplicateOpen}
+                title={
+                    data.vintage ? `${data.name} ${data.vintage}` : data.name
+                }
+                bottles={formatQuantity(catalog, data.quantity, data.format)}
+                count={data.quantity}
+                lots={twins}
+                target={
+                    location
+                        ? `${location.cellar.name} › ${location.compartment.name}`
+                        : null
+                }
+                targetId={data.compartment_id}
+                placements={split}
+                busy={processing}
+                onMerge={(lot) => send(lot)}
+                onSeparate={() => send(null)}
+                onElsewhere={() => {
+                    setDuplicateOpen(false);
+                    window.setTimeout(() => focusField('place'), 250);
+                }}
+            />
+
             {/* Barre d’action mobile */}
             <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-hairline bg-background/85 px-4 pt-3 backdrop-blur-xl lg:hidden">
                 <div className="flex items-center gap-3">
@@ -1357,8 +1619,8 @@ export default function WineForm({
                             {location
                                 ? location.compartment.name
                                 : 'choisis une clayette'}
-                            {location && placements.length > 0
-                                ? ` + ${placements.length} autre${placements.length > 1 ? 's' : ''}`
+                            {location && split.length > 0
+                                ? ` + ${split.length} autre${split.length > 1 ? 's' : ''}`
                                 : ''}
                         </span>
                     </p>
@@ -1392,18 +1654,20 @@ export default function WineForm({
 }
 
 function FormSection({
+    id,
     title,
     optional = false,
     error,
     children,
 }: {
+    id?: string;
     title: string;
     optional?: boolean;
     error?: string;
     children: ReactNode;
 }) {
     return (
-        <section>
+        <section id={id} className="scroll-mt-24">
             <h2 className="mb-3 font-display text-lg font-bold">
                 {title}
                 {optional && (

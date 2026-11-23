@@ -131,6 +131,20 @@ class WineStockTest extends TestCase
         $this->assertSame(3, Wine::query()->count());
     }
 
+    public function test_moved_gifts_never_join_bottles_meant_to_be_drunk(): void
+    {
+        [$user, , $cellar] = $this->userWithCellar();
+        [$from, $to] = $cellar->compartments->all();
+        $gift = $this->wineIn($from, ['name' => 'Morgon', 'vintage' => 2022, 'quantity' => 3, 'keepsake' => true]);
+        $drinkable = $this->wineIn($to, ['name' => 'Morgon', 'vintage' => 2022, 'quantity' => 1]);
+
+        $this->actingAs($user)->post(route('wines.move', $gift), ['compartment_id' => $to->id, 'quantity' => 1]);
+
+        $this->assertSame(1, $drinkable->refresh()->quantity);
+        $this->assertTrue(Wine::query()->where('compartment_id', $to->id)->where('keepsake', true)->sole()->keepsake);
+        $this->assertSame(2, $gift->refresh()->quantity);
+    }
+
     public function test_corked_bottles_are_discarded(): void
     {
         [$user, , $cellar] = $this->userWithCellar();

@@ -74,6 +74,7 @@ class WineRequest extends FormRequest
             'tags' => ['nullable', 'array', 'max:'.self::MAX_TAGS],
             'tags.*' => ['string', 'max:30'],
             'compartment_id' => ['required', 'integer', $household instanceof Household ? new CompartmentInHousehold($household) : 'prohibited'],
+            'merge_into' => [$creating ? 'nullable' : 'prohibited', 'integer'],
             'placements' => [$creating ? 'nullable' : 'prohibited', 'array', 'max:10'],
             'placements.*.compartment_id' => ['required', 'integer', $household instanceof Household ? new CompartmentInHousehold($household) : 'prohibited'],
             'placements.*.quantity' => ['required', 'integer', 'min:1'],
@@ -165,7 +166,7 @@ class WineRequest extends FormRequest
      */
     public function wineData(): array
     {
-        $data = Arr::except($this->validated(), ['photo', 'remove_photo', 'price', 'value', 'placements']);
+        $data = Arr::except($this->validated(), ['photo', 'remove_photo', 'price', 'value', 'placements', 'merge_into']);
 
         foreach (['price' => 'price_cents', 'value' => 'value_cents'] as $input => $column) {
             if ($this->has($input)) {

@@ -14,6 +14,8 @@ use App\Support\CellarQueries;
 use App\Support\KnownValues;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -76,6 +78,7 @@ class WineController extends Controller
             'cellars' => CellarQueries::options($household),
             'suggestions' => $this->suggestions($household, $request),
             'known' => KnownValues::for($household),
+            'stock' => $this->stock($household),
         ]);
     }
 
@@ -89,6 +92,11 @@ class WineController extends Controller
 
         $user = $this->user($request);
         $data = $request->wineData();
+
+        // The same wine is already in stock: the bottles join that lot.
+        if ($request->filled('merge_into')) {
+            return $this->mergeInto($request, $inventory, $household, $data);
+        }
 
         // Some bottles may go elsewhere when there is not enough room: one
         // lot per place, bottles for the main place first.
@@ -230,6 +238,91 @@ class WineController extends Controller
         $this->toast("{$name} a été retiré de la cave");
 
         return redirect()->route('wines.index');
+    }
+
+    /**
+     * New bottles of a wine already in stock (same cuvée, estate, vintage,
+     * format and colour) join that lot instead of starting a new one.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function mergeInto(WineRequest $request, Inventory $inventory, Household $household, array $data): RedirectResponse
+    {
+        $lot = $household->wines()->inStock()->find($request->integer('merge_into'));
+        $bottles = new Wine(Arr::only($data, ['name', 'producer', 'vintage', 'format', 'category', 'keepsake']));
+
+        // Same wine, and the same « Ne pas boire » choice: a gift never
+        // joins bottles meant to be drunk, nor the other way round.
+        if ($lot === null || $lot->identityKey() !== $bottles->identityKey() || $lot->keepsake !== (bool) $bottles->keepsake) {
+            throw ValidationException::withMessages([
+                'merge_into' => 'Ces bouteilles ne correspondent plus au vin en cave : range-les normalement.',
+            ]);
+        }
+
+        $user = $this->user($request);
+        $total = (int) $data['quantity'];
+        // The lot's place, or the one chosen when the lot has lost its own.
+        $target = $lot->compartment_id ?? (int) $data['compartment_id'];
+
+        // A split chosen in the form is kept: the bottles meant for other
+        // places join the same wine there, or start a lot of their own.
+        $elsewhere = collect($request->placements())
+            ->groupBy('compartment_id')
+            ->map(fn ($rows) => (int) $rows->sum('quantity'))
+            ->except([$target]);
+        $here = $total - (int) $elsewhere->sum();
+
+        $lot = $inventory->join($lot, $user, $here, $data, $request->file('photo'), $target);
+
+        foreach ($elsewhere as $compartmentId => $quantity) {
+            $twin = $inventory->twinIn($lot, (int) $compartmentId);
+
+            $twin !== null
+                ? $inventory->join($twin, $user, $quantity, $data, $lot)
+                : $inventory->add($household, $user, [...$data, 'compartment_id' => $compartmentId, 'quantity' => $quantity], null, $lot);
+        }
+
+        $lot->load('compartment.cellar');
+
+        $this->toast("{$lot->fullName()} : +{$here}, soit ".$lot->format->format($lot->quantity)." dans {$lot->compartment?->name}"
+            .($elsewhere->isNotEmpty() ? ' (et '.$elsewhere->sum().' ailleurs)' : '').' 🍷');
+        $this->celebrate();
+
+        return $lot->compartment !== null
+            ? redirect()->route('cellars.show', [
+                'cellar' => $lot->compartment->cellar_id,
+                'compartment' => $lot->compartment_id,
+                'item' => $lot->id,
+            ])
+            : redirect()->route('wines.show', $lot);
+    }
+
+    /**
+     * The lots in stock, to warn when the wine being added is already there.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function stock(Household $household): array
+    {
+        return array_values($household->wines()
+            ->inStock()
+            ->with('compartment.cellar')
+            ->get()
+            ->map(fn (Wine $wine) => [
+                'id' => $wine->id,
+                'name' => $wine->name,
+                'producer' => $wine->producer,
+                'vintage' => $wine->vintage,
+                'format' => $wine->format->value,
+                'category' => $wine->category->value,
+                'keepsake' => $wine->keepsake,
+                'quantity' => $wine->quantity,
+                'compartmentId' => $wine->compartment_id,
+                'place' => $wine->compartment !== null
+                    ? "{$wine->compartment->cellar->name} › {$wine->compartment->name}"
+                    : null,
+            ])
+            ->all());
     }
 
     /**

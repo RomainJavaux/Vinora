@@ -202,6 +202,22 @@ export type KnownValues = {
     grapes: KnownValue[];
 };
 
+/** A lot in stock, to warn when the same wine is added again. */
+export type StockLot = {
+    id: number;
+    name: string;
+    producer: string | null;
+    vintage: number | null;
+    format: FormatValue;
+    category: CategoryValue;
+    /** « Ne pas boire » : a gift never joins bottles meant to be drunk. */
+    keepsake: boolean;
+    quantity: number;
+    compartmentId: number | null;
+    /** « Cave du salon › Clayette 2 » */
+    place: string | null;
+};
+
 export type WineSuggestion = {
     id: number;
     name: string;
