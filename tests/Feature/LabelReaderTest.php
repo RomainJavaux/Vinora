@@ -5,11 +5,15 @@ namespace Tests\Feature;
 use Anthropic\Client;
 use App\Exceptions\LabelReadingFailed;
 use App\Models\User;
+use App\Providers\AppServiceProvider;
 use App\Services\LabelReader;
 use GuzzleHttp\Psr7\Response;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Inertia\Testing\AssertableInertia as Assert;
 use Mockery;
 use Mockery\MockInterface;
@@ -164,21 +168,44 @@ class LabelReaderTest extends TestCase
             ->assertJsonValidationErrors('photo');
     }
 
-    public function test_readings_are_limited_to_thirty_an_hour(): void
+    public function test_a_whole_cellar_can_be_read_but_a_runaway_button_is_stopped(): void
     {
         [$user] = $this->userWithCellar();
         $user->forceFill(['anthropic_api_key' => self::KEY])->save();
-        $this->mock(LabelReader::class, fn (MockInterface $mock) => $mock->shouldReceive('read')->times(30)->andReturn($this->fields()));
+        $perMinute = AppServiceProvider::LABELS_PER_MINUTE;
+        $this->mock(LabelReader::class, fn (MockInterface $mock) => $mock->shouldReceive('read')->times($perMinute * 4)->andReturn($this->fields()));
+        $read = fn () => $this->actingAs($user)
+            ->postJson(route('wines.read-label'), ['photo' => UploadedFile::fake()->image('etiquette.jpg')]);
 
-        for ($i = 0; $i < 30; $i++) {
-            $this->actingAs($user)
-                ->postJson(route('wines.read-label'), ['photo' => UploadedFile::fake()->image('etiquette.jpg')])
-                ->assertOk();
+        // Well over the old 30 an hour, at a human pace.
+        for ($minute = 0; $minute < 4; $minute++) {
+            for ($i = 0; $i < $perMinute; $i++) {
+                $read()->assertOk();
+            }
+
+            if ($minute === 0) {
+                $read()->assertStatus(429)
+                    ->assertJsonPath('message', fn (string $message) => str_starts_with($message, "Doucement : {$perMinute} étiquettes en une minute."));
+            }
+
+            $this->travel(61)->seconds();
         }
+    }
 
-        $this->actingAs($user)
-            ->postJson(route('wines.read-label'), ['photo' => UploadedFile::fake()->image('etiquette.jpg')])
-            ->assertStatus(429);
+    public function test_a_day_of_readings_is_capped(): void
+    {
+        $user = User::factory()->create();
+        $request = Request::create('/wines/read-label', 'POST');
+        $request->setUserResolver(fn () => $user);
+
+        /** @var list<Limit> $limits */
+        $limits = (RateLimiter::limiter('label-reading') ?? fn () => [])($request);
+
+        $this->assertSame(
+            [[AppServiceProvider::LABELS_PER_MINUTE, 60], [AppServiceProvider::LABELS_PER_DAY, 86400]],
+            array_map(fn (Limit $limit) => [$limit->maxAttempts, $limit->decaySeconds], $limits),
+        );
+        $this->assertNotSame($limits[0]->key, $limits[1]->key, 'Each limit keeps its own count.');
     }
 
     public function test_claudes_answer_is_cleaned_like_the_form(): void

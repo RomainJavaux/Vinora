@@ -15,6 +15,11 @@ use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
+    /** Label readings allowed per user, in a minute and in a day. */
+    public const LABELS_PER_MINUTE = 12;
+
+    public const LABELS_PER_DAY = 500;
+
     /**
      * Register any application services.
      */
@@ -31,12 +36,25 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         // Each reading costs the user a few cents on their own Anthropic
-        // account: keep a mistake (or a stuck button) from running up a bill.
-        RateLimiter::for('label-reading', fn (Request $request) => Limit::perHour(30)
-            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip()))
-            ->response(fn () => response()->json([
-                'message' => 'Tu as lu 30 étiquettes cette heure-ci : réessaie un peu plus tard.',
-            ], 429)));
+        // account. Room enough to take stock of a whole cellar in one go,
+        // but a stuck button (or a loop) is stopped within the minute, and
+        // a day never runs up more than a few euros.
+        RateLimiter::for('label-reading', function (Request $request) {
+            $user = (string) ($request->user()?->getAuthIdentifier() ?? $request->ip());
+            $wait = fn (array $headers): int => max(1, (int) ($headers['Retry-After'] ?? 60));
+
+            return [
+                Limit::perMinute(self::LABELS_PER_MINUTE)->by("{$user}:minute")
+                    ->response(fn (Request $request, array $headers) => response()->json([
+                        'message' => 'Doucement : '.self::LABELS_PER_MINUTE.' étiquettes en une minute. Réessaie dans '.$wait($headers).' s.',
+                    ], 429, $headers)),
+                Limit::perDay(self::LABELS_PER_DAY)->by("{$user}:day")
+                    ->response(fn (Request $request, array $headers) => response()->json([
+                        'message' => 'Tu as lu '.self::LABELS_PER_DAY.' étiquettes en 24 h : la lecture reprend dans '
+                            .max(1, (int) ceil($wait($headers) / 3600)).' h.',
+                    ], 429, $headers)),
+            ];
+        });
     }
 
     /**
